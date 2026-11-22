@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "obs-backup-restore"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Back up and restore OBS Studio profiles, scene collections, sources and settings."
 readme = "README.md"
 license = "MIT"
@@ -35,6 +35,9 @@ dev = [
 
 [project.gui-scripts]
 obs-backup-restore = "obs_backup.__main__:main"
+
+[tool.hatch.version]
+path = "src/obs_backup/__init__.py"  # the only place the version is set
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/obs_backup"]

@@ -97,7 +97,7 @@ Build a standalone app (output in `dist/`):
 python packaging/build.py
 ```
 
-Pushing a tag such as `v0.1.0` builds the apps for all three systems through GitHub Actions and creates a draft release with them.
+To release, set the version in [`src/obs_backup/__init__.py`](src/obs_backup/__init__.py), commit, then push a tag with the same version (`git tag 1.0.0 && git push origin 1.0.0`). GitHub Actions builds the apps for all three systems and creates a draft release with them.
 
 ## Project layout
 
