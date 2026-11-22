@@ -1,175 +1,188 @@
 # Graph Report - obs_backup  (2026-11-22)
 
 ## Corpus Check
-- Corpus is ~26,303 words - fits in a single context window. You may not need a graph.
+- 50 files · ~28,339 words
+- Verdict: corpus is large enough that graph structure adds value.
+- Unclassified: 4 file(s) not represented in the graph (top: (none) 3, .lock 1)
 
 ## Summary
-- 500 nodes · 1156 edges · 21 communities (20 shown, 1 thin omitted)
-- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 72 edges (avg confidence: 0.92)
-- Token cost: 103,250 input · 0 output
+- 544 nodes · 1274 edges · 26 communities (22 shown, 4 thin omitted)
+- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 74 edges (avg confidence: 0.92)
+- Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `652adccf`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- App Startup & About Box
-- Backup Tab & OBS Panel
-- CI, Release & Licensing Docs
-- Main Window
-- Backup & Restore Tests
-- Backup Errors & Manifest
-- Selection Tree
-- Build Script & Licenses
-- Restore Logic & Models
-- OBS Config Reading
-- OBS Locator
-- App Settings & Restore Start
-- Media Path Handling
-- UI Screenshot Elements
-- Backup Creation
-- Backup File Collection
-- Translation Tests
-- Locator Tests
-- frozendict Helper
-- Config Tests
-- Package Metadata
+- tr
+- TaskRunner
+- build job (Windows exe / Linux tar.gz)
+- AppSettings
+- Selection
+- manifest.py
+- SelectionTree
+- test_i18n.py
+- restore.py
+- config.py
+- InstallPanel
+- test_manifest.py
+- media.py
+- Backup Selection Checkbox Tree
+- Backup & Restore for OBS
+- create.py
+- _plan_media
+- test_locator.py
+- _frozen
+- pathlib
+- backup-restore-for-obs
+- GNU General Public License v2
+- RELEASE_NOTES_TEMPLATE.md
+- .__init__
+- CLAUDE.md
+- psutil BSD 3-Clause License
 
 ## God Nodes (most connected - your core abstractions)
-1. `tr()` - 34 edges
-2. `AppSettings` - 30 edges
-3. `Selection` - 24 edges
-4. `InstallPanel` - 24 edges
-5. `MainWindow` - 24 edges
+1. `Selection` - 36 edges
+2. `tr()` - 34 edges
+3. `AppSettings` - 31 edges
+4. `MainWindow` - 26 edges
+5. `InstallPanel` - 24 edges
 6. `TaskRunner` - 22 edges
-7. `Backup & Restore for OBS` - 22 edges
-8. `SelectionTree` - 20 edges
-9. `RestoreTab` - 18 edges
-10. `BackupTab` - 17 edges
+7. `SelectionTree` - 20 edges
+8. `RestoreTab` - 18 edges
+9. `BackupTab` - 17 edges
+10. `create_backup()` - 16 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `test_empty_selection_rejected()` --calls--> `Selection`  [INFERRED]
-  tests/backup/test_create.py → src/obs_backup/backup/models.py
-- `test_partial_selection()` --calls--> `Selection`  [INFERRED]
-  tests/backup/test_create.py → src/obs_backup/backup/models.py
 - `test_list_backups()` --calls--> `Selection`  [INFERRED]
   tests/backup/test_manifest.py → src/obs_backup/backup/models.py
-- `test_rejects_zip_slip()` --calls--> `Selection`  [INFERRED]
-  tests/backup/test_restore.py → src/obs_backup/backup/models.py
-- `test_restore_only_selected()` --calls--> `Selection`  [INFERRED]
-  tests/backup/test_restore.py → src/obs_backup/backup/models.py
+- `test_list_backups_skips_damaged_manifests()` --calls--> `Selection`  [INFERRED]
+  tests/backup/test_manifest.py → src/obs_backup/backup/models.py
+- `test_everything_but_browser_data_is_ticked_by_default()` --uses--> `SelectionTree`  [INFERRED]
+  tests/gui/test_selection_tree.py → src/obs_backup/gui/selection_tree.py
+- `test_select_none_and_all()` --uses--> `SelectionTree`  [INFERRED]
+  tests/gui/test_selection_tree.py → src/obs_backup/gui/selection_tree.py
+- `test_empty_selection_rejected()` --calls--> `Selection`  [INFERRED]
+  tests/backup/test_create.py → src/obs_backup/backup/models.py
 
 ## Import Cycles
 - None detected.
 
 ## Hyperedges (group relationships)
-- **Third-party components bundled in the standalone apps** — third_party_notices_qt6, third_party_notices_pyside6, third_party_notices_psutil, third_party_notices_python_runtime, third_party_notices_pyinstaller_bootloader, third_party_notices_msvc_runtime [EXTRACTED 1.00]
-- **Tagged release pipeline (version check, build, checksums, draft notes)** — _github_workflows_release_release_workflow, _github_workflows_release_build_job, _github_workflows_release_tag_version_check, _github_workflows_release_release_job, _github_workflows_release_sha256sums, _github_release_notes_template_release_notes_template, _github_release_notes_template_repo_url_placeholder [EXTRACTED 1.00]
-- **Code quality toolchain (pre-commit, CI lint and tests)** — readme_ruff, readme_pyright, readme_pytest, _github_workflows_ci_lint_job, _github_workflows_ci_test_job, _pre_commit_config_ruff_check_hook, _pre_commit_config_ruff_format_hook [INFERRED 0.85]
 - **Selectable OBS Backup Categories** — docs_screenshot_profiles, docs_screenshot_scene_collections, docs_screenshot_general_settings, docs_screenshot_plugin_settings, docs_screenshot_browser_source_dock_data [EXTRACTED 1.00]
 - **Backup Creation Flow (Source, Selection, Destination, Action)** — docs_screenshot_obs_installation_panel, docs_screenshot_backup_selection_tree, docs_screenshot_include_media_files, docs_screenshot_save_to_destination, docs_screenshot_create_backup_button [INFERRED 0.85]
 
-## Communities (21 total, 1 thin omitted)
+## Communities (26 total, 4 thin omitted)
 
-### Community 0 - "App Startup & About Box"
-Cohesion: 0.07
-Nodes (44): collections_abc, locale, pathlib, pyside6_qtcore, pyside6_qtgui, pyside6_qtwidgets, QDialog, QUrl (+36 more)
+### Community 0 - "tr"
+Cohesion: 0.06
+Nodes (48): collections_abc, locale, pyside6_qtcore, pyside6_qtgui, pyside6_qtwidgets, QDialog, QUrl, QWidget (+40 more)
 
-### Community 1 - "Backup Tab & OBS Panel"
-Cohesion: 0.05
-Nodes (30): QGroupBox, QObject, BackupTab, Path, QWidget, Show the contents of the currently selected OBS config folder., InstallPanel, Path (+22 more)
+### Community 1 - "TaskRunner"
+Cohesion: 0.11
+Nodes (13): QObject, BackupTab, Path, QWidget, Show the contents of the currently selected OBS config folder., Any, Slot, Runs one task in the thread it is moved to. (+5 more)
 
-### Community 2 - "CI, Release & Licensing Docs"
-Cohesion: 0.07
-Nodes (56): Release Notes Template, REPO_URL placeholder, Unsigned apps / SmartScreen warning, CI workflow, lint job (ruff format, ruff check, pyright), test job (pytest on Windows + Ubuntu matrix), build job (Windows exe / Linux tar.gz), Code signing (SignPath Foundation / OSSign) (+48 more)
+### Community 2 - "build job (Windows exe / Linux tar.gz)"
+Cohesion: 0.17
+Nodes (13): CI workflow, lint job (ruff format, ruff check, pyright), test job (pytest on Windows + Ubuntu matrix), build job (Windows exe / Linux tar.gz), Code signing (SignPath Foundation / OSSign), release job (draft GitHub release), Release workflow, SHA256SUMS.txt checksums (+5 more)
 
-### Community 3 - "Main Window"
+### Community 3 - "AppSettings"
+Cohesion: 0.09
+Nodes (24): QApplication, QCloseEvent, QMainWindow, setter, documents_dir(), MainWindow, Slot, Create menus and widgets in the current language (again after a language… (+16 more)
+
+### Community 4 - "Selection"
 Cohesion: 0.10
-Nodes (20): QApplication, QCloseEvent, QMainWindow, open_folder(), Path, Show a folder in the system file manager., MainWindow, Slot (+12 more)
+Nodes (44): json, What to back up or restore., Selection, Path, test_backup_contents(), test_backup_without_browser_and_media(), test_empty_selection_rejected(), test_partial_selection() (+36 more)
 
-### Community 4 - "Backup & Restore Tests"
+### Community 5 - "manifest.py"
+Cohesion: 0.17
+Nodes (21): InvalidBackupError, A file is not a valid backup, or is damaged or unsafe., _damaged(), _is_int(), _list(), list_backups(), Manifest, _media() (+13 more)
+
+### Community 6 - "SelectionTree"
 Cohesion: 0.13
-Nodes (25): os, Path, test_backup_contents(), test_backup_without_browser_and_media(), test_empty_selection_rejected(), test_partial_selection(), Path, Restoring backups, including media remapping and unsafe archives. (+17 more)
+Nodes (13): pytest, QTreeWidget, QTreeWidgetItem, _children(), QWidget, Profiles and scene collections as groups, the other items as single entries., Fill the tree. ``profiles`` and ``scenes`` are ``(display name, key)`` pairs., SelectionTree (+5 more)
 
-### Community 5 - "Backup Errors & Manifest"
+### Community 7 - "test_i18n.py"
+Cohesion: 0.06
+Nodes (38): app_version(), copy_python_license(), main(), Path, Build the standalone app with PyInstaller. uv run python packaging/build.py…, Version resource (file properties → Details) for the Windows .exe., The license of the Python being bundled; it lists that build's own libraries.…, write_windows_version_info() (+30 more)
+
+### Community 8 - "restore.py"
 Cohesion: 0.15
-Nodes (21): dataclasses, Exception, default_backup_name(), BackupError, InvalidBackupError, Errors raised while creating or restoring backups., A backup could not be created or restored., A file is not a valid backup, or is damaged or unsafe. (+13 more)
+Nodes (22): Exception, What to back up before restoring ``restoring``: everything a restore can…, safety_selection(), default_backup_name(), BackupError, Errors raised while creating or restoring backups., A restore failed; ``safety_backup`` holds the config folder as it was before., A backup could not be created or restored. (+14 more)
 
-### Community 6 - "Selection Tree"
-Cohesion: 0.10
-Nodes (17): pytest, QTreeWidget, QTreeWidgetItem, _children(), QWidget, Profiles and scene collections as groups, the other items as single entries., Fill the tree. ``profiles`` and ``scenes`` are ``(display name, key)`` pairs., SelectionTree (+9 more)
+### Community 9 - "config.py"
+Cohesion: 0.14
+Nodes (23): ConfigParser, contextlib, dataclasses, itertools, full_selection(), Everything worth keeping, except browser data (large, and rarely restored)., _manifest(), Path (+15 more)
 
-### Community 7 - "Build Script & Licenses"
-Cohesion: 0.12
-Nodes (20): app_version(), copy_python_license(), main(), Path, Build the standalone app with PyInstaller. uv run python packaging/build.py…, Version resource (file properties → Details) for the Windows .exe., The license of the Python being bundled; it lists that build's own libraries.…, write_windows_version_info() (+12 more)
+### Community 10 - "InstallPanel"
+Cohesion: 0.11
+Nodes (28): psutil, QGroupBox, InstallPanel, Path, QWidget, Check whether OBS is running and show it, with the OBS version., Lists the OBS config folders found and checks regularly whether OBS is running., Look for OBS installations again. (+20 more)
 
-### Community 8 - "Restore Logic & Models"
-Cohesion: 0.15
-Nodes (20): Data passed into and returned from backup and restore., What to back up or restore., RestoreResult, Selection, _is_selected(), members_for(), _plan_media(), Path (+12 more)
-
-### Community 9 - "OBS Config Reading"
-Cohesion: 0.16
-Nodes (20): ConfigParser, contextlib, itertools, full_selection(), Everything worth keeping, as used for the safety backup before a restore., _CaseKeepingParser, has_browser_data(), has_plugin_config() (+12 more)
-
-### Community 10 - "OBS Locator"
-Cohesion: 0.23
-Nodes (20): psutil, config_dir_for_process(), default_config_dir(), discover(), add(), find_running_obs(), flatpak_config_dir(), _home() (+12 more)
-
-### Community 11 - "App Settings & Restore Start"
-Cohesion: 0.25
-Nodes (6): setter, documents_dir(), task(), AppSettings, Path, Typed access to the app's QSettings (registry on Windows, a .conf file on…
-
-### Community 12 - "Media Path Handling"
+### Community 11 - "test_manifest.py"
 Cohesion: 0.18
-Nodes (15): json, find_media_files(), iter_strings(), looks_like_local_path(), Any, Find and rewrite the local file paths that scene collections refer to. Sources…, Absolute paths of existing files referenced by a scene collection, as stored., replace_strings() (+7 more)
+Nodes (18): skipif, is_plain_name(), Whether ``name`` is one file or folder name on this OS, safe to join to a…, parametrize, Path, Reading manifests and listing backups., test_drive_relative_name_is_not_plain(), test_entries_always_have_name_and_folder() (+10 more)
 
-### Community 13 - "UI Screenshot Elements"
+### Community 12 - "media.py"
+Cohesion: 0.14
+Nodes (20): _rewritten_scene(), dump_scene_json(), file_name(), find_media_files(), iter_strings(), load_scene_json(), looks_like_local_path(), Any (+12 more)
+
+### Community 13 - "Backup Selection Checkbox Tree"
 Cohesion: 0.16
 Nodes (16): Backup Selection Checkbox Tree, Back up Tab, Browser Source & Dock Data (Cookies, Logins), Create Backup Button, General Settings (global.ini, user.ini, Plugin Manager), Include Media Files Used by Scenes Option, Language Menu (Localization), OBS Backup & Restore Main Window (Screenshot) (+8 more)
 
-### Community 14 - "Backup Creation"
-Cohesion: 0.18
-Nodes (13): datetime, platform, _compression(), create_backup(), _manifest(), Path, Progress, Create a backup file. (+5 more)
+### Community 14 - "Backup & Restore for OBS"
+Cohesion: 0.12
+Nodes (15): AI disclosure, Backup file format, Backup & Restore for OBS, Contributing, Download, Features, License, Privacy (+7 more)
 
-### Community 15 - "Backup File Collection"
-Cohesion: 0.19
-Nodes (13): collect_files(), _is_browser_cache_dir(), _is_browser_skip_file(), Path, Work out which files a backup should contain., All files under ``root`` (or ``root`` itself if it is a file), sorted., Files under ``config_dir`` that ``sel`` covers (without media)., Media files the given scene collections use and that exist on this machine. (+5 more)
+### Community 15 - "create.py"
+Cohesion: 0.14
+Nodes (22): datetime, os, platform, collect_files(), _is_browser_cache_dir(), _is_browser_skip_file(), Path, Work out which files a backup should contain. (+14 more)
 
-### Community 16 - "Translation Tests"
-Cohesion: 0.25
-Nodes (10): string, placeholders(), parametrize, Translations: complete, consistent and matching the texts the code uses., test_every_used_key_exists(), test_language_has_every_key(), test_no_unused_keys(), test_placeholders_match_english() (+2 more)
+### Community 16 - "_plan_media"
+Cohesion: 0.27
+Nodes (11): _crc32(), _has_contents(), _plan_media(), Path, Media files to extract, and the path rewrites for the scene collections., ``base / rel``, refusing paths that are not inside ``base`` (zip slip)., Whether the file at ``path`` holds exactly the zip member ``info``., Where to put the media file ``info`` in ``media_dir``. A file that already… (+3 more)
 
-### Community 17 - "Locator Tests"
+### Community 17 - "test_locator.py"
 Cohesion: 0.29
 Nodes (4): Path, Finding OBS and its config folder., test_portable_by_flag(), test_portable_by_marker_file()
 
-### Community 18 - "frozendict Helper"
+### Community 18 - "_frozen"
 Cohesion: 0.50
 Nodes (4): frozendict, K, _frozen(), V
 
-### Community 19 - "Config Tests"
-Cohesion: 0.50
-Nodes (3): Path, Reading profiles, scene collections and the OBS version., test_reads_config()
+### Community 19 - "pathlib"
+Cohesion: 0.22
+Nodes (6): pathlib, Layout of a backup file. A backup is a plain zip file:: manifest.json what the…, Knowledge about OBS Studio itself. - ``locator``: find OBS installations and…, Path, Reading profiles, scene collections and the OBS version., test_reads_config()
 
-## Ambiguous Edges - Review These
-- `Code signing (SignPath Foundation / OSSign)` → `Privacy: no telemetry, no update check, no accounts`  [AMBIGUOUS]
-  README.md · relation: conceptually_related_to
+### Community 21 - "GNU General Public License v2"
+Cohesion: 0.40
+Nodes (6): GNU General Public License v3, GNU Lesser General Public License v3, PyInstaller Bootloader Exception, GNU General Public License v2, PyInstaller licensing terms, PyInstaller run-time hooks (Apache 2.0)
+
+### Community 22 - "RELEASE_NOTES_TEMPLATE.md"
+Cohesion: 0.50
+Nodes (3): AI disclosure, Download, Licenses
 
 ## Knowledge Gaps
-- **11 isolated node(s):** `backup-restore-for-obs`, `App settings storage (registry / ~/.config)`, `Python 3.15 (lazy imports, frozendict)`, `pyright (type checker behind Pylance)`, `Adding a UI language (i18n _MODULES)` (+6 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 145 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **1 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **28 isolated node(s):** `backup-restore-for-obs`, `Download`, `AI disclosure`, `Licenses`, `graphify` (+23 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 177 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **What is the exact relationship between `Code signing (SignPath Foundation / OSSign)` and `Privacy: no telemetry, no update check, no accounts`?**
-  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `Run from source` connect `CI, Release & Licensing Docs` to `Build Script & Licenses`?**
-  _High betweenness centrality (0.088) - this node is a cross-community bridge._
-- **Why does `tr()` connect `App Startup & About Box` to `App Settings & Restore Start`, `Backup Tab & OBS Panel`, `Main Window`, `Selection Tree`?**
-  _High betweenness centrality (0.085) - this node is a cross-community bridge._
-- **Why does `AppSettings` connect `App Settings & Restore Start` to `App Startup & About Box`, `Backup Tab & OBS Panel`, `Main Window`?**
+- **Why does `tr()` connect `tr` to `TaskRunner`, `AppSettings`, `SelectionTree`, `test_i18n.py`, `InstallPanel`?**
   _High betweenness centrality (0.070) - this node is a cross-community bridge._
-- **Are the 7 inferred relationships involving `AppSettings` (e.g. with `BackupTab` and `InstallPanel`) actually correct?**
-  _`AppSettings` has 7 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 13 inferred relationships involving `Selection` (e.g. with `collect_files()` and `create_backup()`) actually correct?**
-  _`Selection` has 13 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 6 inferred relationships involving `InstallPanel` (e.g. with `BackupTab` and `AppSettings`) actually correct?**
-  _`InstallPanel` has 6 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `AppSettings` connect `AppSettings` to `tr`, `TaskRunner`, `InstallPanel`, `test_i18n.py`?**
+  _High betweenness centrality (0.063) - this node is a cross-community bridge._
+- **Why does `Selection` connect `Selection` to `tr`, `SelectionTree`, `restore.py`, `config.py`, `test_manifest.py`, `create.py`, `_plan_media`?**
+  _High betweenness centrality (0.054) - this node is a cross-community bridge._
+- **Are the 25 inferred relationships involving `Selection` (e.g. with `collect_files()` and `safety_selection()`) actually correct?**
+  _`Selection` has 25 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 8 inferred relationships involving `AppSettings` (e.g. with `BackupTab` and `InstallPanel`) actually correct?**
+  _`AppSettings` has 8 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 11 inferred relationships involving `MainWindow` (e.g. with `BackupTab` and `InstallPanel`) actually correct?**
+  _`MainWindow` has 11 INFERRED edges - model-reasoned connections that need verification._
+- **What connects `backup-restore-for-obs`, `Download`, `AI disclosure` to the rest of the system?**
+  _28 weakly-connected nodes found - possible documentation gaps or missing edges._
