@@ -21,7 +21,7 @@ from obs_backup.gui.helpers import format_size, open_folder, preview_list
 from obs_backup.gui.install_panel import InstallPanel
 from obs_backup.gui.selection_tree import SelectionTree, selection_buttons
 from obs_backup.gui.settings import AppSettings
-from obs_backup.gui.tasks import TaskRunner
+from obs_backup.gui.tasks import LatestCall, TaskRunner
 from obs_backup.gui.widgets import FolderEdit
 from obs_backup.i18n import tr
 from obs_backup.obs import config as obs_config
@@ -36,12 +36,14 @@ class BackupTab(QWidget):
         settings: AppSettings,
         tasks: TaskRunner,
         install: InstallPanel,
+        media_counter: LatestCall,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._settings = settings
         self._tasks = tasks
         self._install = install
+        self._media_counter = media_counter
 
         self._tree = SelectionTree()
         # Checking a group changes every item in it; count the media once afterwards.
@@ -86,6 +88,7 @@ class BackupTab(QWidget):
         cfg = self._install.config_dir
         if cfg is None:
             self._tree.clear()
+            self._update_media_summary()
             return
         self._tree.populate(
             profiles=[(p.name, p.dir_name) for p in obs_config.list_profiles(cfg)],
@@ -102,11 +105,17 @@ class BackupTab(QWidget):
         self._update_media_summary()
 
     def _update_media_summary(self) -> None:
+        """Count the media in the background: checking paths can be slow (network drives)."""
         cfg = self._install.config_dir
         if not self._media_check.isChecked() or cfg is None:
+            self._media_counter.cancel()
             self._media_label.clear()
             return
-        refs = backup.scan_media(cfg, self._tree.selection().scene_collections)
+        scenes = self._tree.selection().scene_collections
+        self._media_label.setText(tr("media_counting"))
+        self._media_counter.call(lambda: backup.scan_media(cfg, scenes), self._show_media_summary)
+
+    def _show_media_summary(self, refs: list[backup.MediaRef]) -> None:
         size = format_size(sum(r.size for r in refs))
         self._media_label.setText(tr("media_summary", count=len(refs), size=size))
 
@@ -118,9 +127,12 @@ class BackupTab(QWidget):
 
     def _start_backup(self) -> None:
         cfg = self._install.config_dir
+        if cfg is None or not cfg.is_dir():
+            QMessageBox.information(self, tr("app_title"), tr("config_dir_missing"))
+            return
         sel = self._tree.selection()
         sel.media = self._media_check.isChecked()
-        if cfg is None or sel.is_empty():
+        if sel.is_empty():
             QMessageBox.information(self, tr("app_title"), tr("nothing_selected"))
             return
         if (
@@ -130,7 +142,7 @@ class BackupTab(QWidget):
         ):
             return
         self._on_dir_changed(self._dir_edit.path())
-        dest = self._settings.backup_dir / backup.default_backup_name()
+        dest = backup.new_backup_path(self._settings.backup_dir)
         self._tasks.run(
             tr("backup_running"),
             lambda progress: backup.create_backup(cfg, dest, sel, progress),

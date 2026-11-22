@@ -2,12 +2,20 @@
 
 import json
 import zipfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, TypedDict
 
 from obs_backup.backup.errors import ZIP_ERRORS, InvalidBackupError
-from obs_backup.backup.layout import FORMAT, FORMAT_VERSION, MANIFEST, MEDIA_PREFIX, is_plain_name
+from obs_backup.backup.layout import (
+    FORMAT,
+    FORMAT_VERSION,
+    MANIFEST,
+    MEDIA_PREFIX,
+    can_create,
+    is_impossible_name,
+    is_plain_name,
+)
 from obs_backup.backup.models import MediaRef
 
 
@@ -35,11 +43,21 @@ class Manifest:
     browser_data: bool
     plugins: bool
     media: list[MediaRef]
+    # Config files (paths relative to the config folder) that could not be read
+    # when the backup was made. The parts of the config folder they belong to are
+    # restored over the current files instead of replacing them.
+    skipped: list[str] = field(default_factory=list)
     format: str = FORMAT
     format_version: int = FORMAT_VERSION
+    # Not stored: profile folders and scene collection files whose names this OS
+    # can't use (a backup from Linux holding "a\b"). They are left out of
+    # ``profiles`` and ``scene_collections``.
+    unusable: list[str] = field(default_factory=list)
 
     def to_json(self) -> str:
-        return json.dumps(asdict(self), ensure_ascii=False, indent=2)
+        data = asdict(self)
+        del data["unusable"]
+        return json.dumps(data, ensure_ascii=False, indent=2)
 
     @classmethod
     def from_json(cls, text: str) -> Manifest:
@@ -47,6 +65,7 @@ class Manifest:
 
         A manifest that loads is well-formed: every entry has the expected keys and
         types, and profile folders and scene collection files are plain names.
+        Names that are fine on another OS but not on this one go to ``unusable``.
         """
         try:
             data = json.loads(text)
@@ -65,22 +84,26 @@ class Manifest:
         obs_version = data.get("obs_version")
         if obs_version is not None and not isinstance(obs_version, str):
             raise _damaged(f"obs_version is {obs_version!r}")
+        unusable: list[str] = []
         return cls(
             created=_text(data, "created"),
             app_version=_text(data, "app_version"),
             source_os=_text(data, "source_os"),
             obs_version=obs_version,
             config_dir=_text(data, "config_dir"),
-            profiles=[{"name": n, "dir": d} for n, d in _named(data, "profiles", "dir")],
+            profiles=[{"name": n, "dir": d} for n, d in _named(data, "profiles", "dir", unusable)],
             scene_collections=[
-                {"name": n, "file": f} for n, f in _named(data, "scene_collections", "file")
+                {"name": n, "file": f}
+                for n, f in _named(data, "scene_collections", "file", unusable)
             ],
             global_settings=_flag(data, "global_settings"),
             plugin_config=_flag(data, "plugin_config"),
             browser_data=_flag(data, "browser_data"),
             plugins=_flag(data, "plugins"),
             media=_media(data),
+            skipped=_strings(data, "skipped"),
             format_version=version,
+            unusable=unusable,
         )
 
 
@@ -113,13 +136,29 @@ def _list(data: dict[str, Any], key: str) -> list[Any]:
     return value
 
 
-def _named(data: dict[str, Any], key: str, name_key: str) -> list[tuple[str, str]]:
-    """``(display name, folder or file name)`` of the profiles or scene collections."""
+def _strings(data: dict[str, Any], key: str) -> list[str]:
+    value = _list(data, key)
+    if not all(isinstance(s, str) for s in value):
+        raise _damaged(f"{key} holds something other than text")
+    return value
+
+
+def _named(
+    data: dict[str, Any], key: str, name_key: str, unusable: list[str]
+) -> list[tuple[str, str]]:
+    """``(display name, folder or file name)`` of the profiles or scene collections.
+
+    Names no OS has (``..``, ``a/b``) mean a damaged or crafted backup. Names this
+    OS can't use are added to ``unusable`` and left out.
+    """
     out = []
     for entry in _list(data, key):
         value = entry.get(name_key) if isinstance(entry, dict) else None
-        if not isinstance(value, str) or not is_plain_name(value):
+        if not isinstance(value, str) or is_impossible_name(value):
             raise _damaged(f"invalid entry in {key}: {entry!r}")
+        if not (is_plain_name(value) and can_create(value)):
+            unusable.append(value)
+            continue
         name = entry.get("name")
         out.append((name if isinstance(name, str) and name else value, value))
     return out

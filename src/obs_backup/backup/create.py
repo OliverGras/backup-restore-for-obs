@@ -4,8 +4,10 @@ import os
 import shutil
 import tempfile
 import zipfile
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
+from typing import BinaryIO
 lazy import platform  # only needed when writing the manifest
 
 from obs_backup import __version__
@@ -26,11 +28,30 @@ STORED_SUFFIXES = frozenset({
 # Config files up to this size are read into memory before they are added to the
 # backup; larger ones (plugins, browser data) go through a temporary file.
 SPOOL_IN_MEMORY = 32 << 20
+CHUNK = 1 << 20
 
 
 def default_backup_name(suffix: str = "") -> str:
     stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     return f"obs-backup_{stamp}{suffix}.zip"
+
+
+def new_backup_path(folder: Path, suffix: str = "") -> Path:
+    """A path in ``folder`` for a new backup that no other backup uses yet.
+
+    Backups are named after the current second; a second backup in the same
+    second gets a number: ``obs-backup_<time>_2.zip``.
+    """
+    name = Path(default_backup_name(suffix))
+    path, n = folder / name, 2
+    while path.exists() or _part(path).exists():
+        path = folder / f"{name.stem}_{n}{name.suffix}"
+        n += 1
+    return path
+
+
+def _part(dest: Path) -> Path:
+    return dest.with_name(dest.name + ".part")
 
 
 def _compression(path: str) -> int:
@@ -39,24 +60,73 @@ def _compression(path: str) -> int:
     return zipfile.ZIP_DEFLATED
 
 
+class _Unreadable(Exception):
+    """A file to back up could not be read; the backup goes on without it.
+
+    Kept apart from errors writing the backup itself (a full disk, a network
+    folder that went away), which end the backup.
+    """
+
+
+def _member_info(
+    zf: zipfile.ZipFile, path: Path, arcname: str, compression: int
+) -> zipfile.ZipInfo:
+    try:
+        info = zipfile.ZipInfo.from_file(path, arcname, strict_timestamps=False)
+    except OSError as e:
+        raise _Unreadable from e
+    info.compress_type = compression
+    info.compress_level = zf.compresslevel
+    return info
+
+
+def _open_source(path: Path) -> BinaryIO:
+    try:
+        return path.open("rb")
+    except OSError as e:
+        raise _Unreadable from e
+
+
+def _chunks(src: BinaryIO) -> Iterator[bytes]:
+    while True:
+        try:
+            chunk = src.read(CHUNK)
+        except OSError as e:
+            raise _Unreadable from e
+        if not chunk:
+            return
+        yield chunk
+
+
 def _add_complete_file(zf: zipfile.ZipFile, path: Path, arcname: str) -> int:
     """Add the file at ``path`` as ``arcname`` and return its size.
 
-    The file is read completely before the member is started: ``ZipFile.write``
-    would leave a truncated member behind if reading failed halfway (a file OBS
+    The file is read completely before the member is started: copying it straight
+    in would leave a truncated member behind if reading failed halfway (a file OBS
     holds locked), and a restore would then write that truncated file.
     """
-    info = zipfile.ZipInfo.from_file(path, arcname, strict_timestamps=False)
-    info.compress_type = zf.compression
-    info.compress_level = zf.compresslevel
+    info = _member_info(zf, path, arcname, zf.compression)
     with tempfile.SpooledTemporaryFile(max_size=SPOOL_IN_MEMORY) as copy:
-        with path.open("rb") as src:
-            shutil.copyfileobj(src, copy)
-        size = copy.tell()
+        with _open_source(path) as src:
+            for chunk in _chunks(src):
+                copy.write(chunk)
         copy.seek(0)
         with zf.open(info, "w") as dst:
-            shutil.copyfileobj(copy, dst)
-    return size
+            shutil.copyfileobj(copy, dst, CHUNK)
+    return info.file_size  # what was written, set when the member was closed
+
+
+def _add_media_file(zf: zipfile.ZipFile, path: str, arcname: str) -> int:
+    """Add the media file at ``path`` as ``arcname`` and return its size.
+
+    Media can be large, so it is not copied first. A file that fails halfway
+    leaves an unused member: the manifest lists only media written completely.
+    """
+    info = _member_info(zf, Path(path), arcname, _compression(path))
+    with _open_source(Path(path)) as src, zf.open(info, "w") as dst:
+        for chunk in _chunks(src):
+            dst.write(chunk)
+    return info.file_size
 
 
 def create_backup(
@@ -65,15 +135,19 @@ def create_backup(
     """Write the selected parts of ``config_dir`` (and optionally media) to ``dest``.
 
     The zip is written to ``dest.part`` first and renamed when complete, so an
-    interrupted backup never leaves a broken file under the final name.
-    Files that can't be read (usually because OBS has them open) are skipped
-    and listed in the result.
+    interrupted backup never leaves a broken file under the final name. An
+    existing file at ``dest`` is never replaced (see ``new_backup_path``).
+    Files that can't be read (usually because OBS has them open) are skipped,
+    listed in the result and recorded in the manifest. An error writing ``dest``
+    ends the backup.
     """
     config_dir = Path(config_dir)
     if not config_dir.is_dir():
         raise BackupError(f"OBS config folder not found: {config_dir}")
     if sel.is_empty():
         raise BackupError("nothing selected")
+    if dest.exists():
+        raise BackupError(f"a file with this name exists already: {dest}")
 
     files = collect_files(config_dir, sel)
     media = scan_media(config_dir, sel.scene_collections) if sel.media else []
@@ -81,14 +155,19 @@ def create_backup(
     result = BackupResult(path=dest, files=0, total_bytes=0)
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_name(dest.name + ".part")
+    tmp = _part(dest)
+    # strict_timestamps=False: files dated before 1980 (which zip can't store)
+    # get 1980-01-01 instead of failing the whole backup.
+    try:  # "x": another backup being written under the same name is left alone
+        zf = zipfile.ZipFile(
+            tmp, "x", zipfile.ZIP_DEFLATED, compresslevel=6, strict_timestamps=False
+        )
+    except FileExistsError as e:
+        raise BackupError(f"another backup is being written to {dest}") from e
     done = 0
     try:
-        # strict_timestamps=False: files dated before 1980 (which zip can't store)
-        # get 1980-01-01 instead of failing the whole backup.
-        with zipfile.ZipFile(
-            tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=6, strict_timestamps=False
-        ) as zf:
+        with zf:
+            skipped_config: list[str] = []
             for path in files:
                 rel = path.relative_to(config_dir).as_posix()
                 if progress:
@@ -96,38 +175,40 @@ def create_backup(
                 try:
                     result.total_bytes += _add_complete_file(zf, path, CONFIG_PREFIX + rel)
                     result.files += 1
-                except OSError:
-                    result.skipped.append(rel)
+                except _Unreadable:
+                    skipped_config.append(rel)
                 done += 1
 
             written_media: list[MediaRef] = []
+            skipped_media: list[str] = []
             for i, ref in enumerate(media, 1):
                 ref.archive = f"{MEDIA_PREFIX}{i:04d}_{file_name(ref.original)}"
                 if progress:
                     progress(done, total, ref.original)
-                # Media can be large, so it is not copied first. A file that fails
-                # halfway leaves an unused member: the manifest lists only media
-                # written completely.
                 try:
-                    zf.write(ref.original, ref.archive, compress_type=_compression(ref.original))
+                    ref.size = _add_media_file(zf, ref.original, ref.archive)
                     written_media.append(ref)
                     result.files += 1
                     result.total_bytes += ref.size
-                except OSError:
-                    result.skipped.append(ref.original)
+                except _Unreadable:
+                    skipped_media.append(ref.original)
                 done += 1
 
-            zf.writestr(MANIFEST, _manifest(config_dir, sel, written_media).to_json())
+            manifest = _manifest(config_dir, sel, written_media, skipped_config)
+            zf.writestr(MANIFEST, manifest.to_json())
         os.replace(tmp, dest)
     except BaseException:
         tmp.unlink(missing_ok=True)
         raise
+    result.skipped = skipped_config + skipped_media
     if progress:
         progress(total, total, "")
     return result
 
 
-def _manifest(config_dir: Path, sel: Selection, media: list[MediaRef]) -> Manifest:
+def _manifest(
+    config_dir: Path, sel: Selection, media: list[MediaRef], skipped: list[str]
+) -> Manifest:
     profiles = [p for p in obs_config.list_profiles(config_dir) if p.dir_name in sel.profiles]
     scenes = [
         s
@@ -147,4 +228,5 @@ def _manifest(config_dir: Path, sel: Selection, media: list[MediaRef]) -> Manife
         browser_data=sel.browser_data,
         plugins=sel.plugins,
         media=media,
+        skipped=skipped,
     )

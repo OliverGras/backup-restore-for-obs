@@ -9,8 +9,13 @@
 """
 
 from obs_backup.backup.collect import collect_files, full_selection, safety_selection, scan_media
-from obs_backup.backup.create import create_backup, default_backup_name
-from obs_backup.backup.errors import BackupError, InvalidBackupError, RestoreFailedError
+from obs_backup.backup.create import create_backup, default_backup_name, new_backup_path
+from obs_backup.backup.errors import (
+    BackupError,
+    IncompleteSafetyBackupError,
+    InvalidBackupError,
+    RestoreFailedError,
+)
 from obs_backup.backup.manifest import (
     Manifest,
     ProfileEntry,
@@ -24,6 +29,7 @@ from obs_backup.backup.restore import restore_backup, restore_with_safety_backup
 __all__ = [
     "BackupError",
     "BackupResult",
+    "IncompleteSafetyBackupError",
     "InvalidBackupError",
     "Manifest",
     "MediaRef",
@@ -38,6 +44,7 @@ __all__ = [
     "default_backup_name",
     "full_selection",
     "list_backups",
+    "new_backup_path",
     "read_manifest",
     "restore_backup",
     "restore_with_safety_backup",

@@ -66,6 +66,7 @@ STRINGS: dict[str, str] = {
     # Back up tab
     "media_checkbox": "Include media files used by the scenes (images, videos, sounds …)",
     "media_summary": "{count} media files, {size}",
+    "media_counting": "Counting media files…",
     "backup_dir_label": "Save to:",
     "choose_backup_dir": "Choose the backup folder",
     "btn_backup": "Create backup",
@@ -79,6 +80,9 @@ STRINGS: dict[str, str] = {
     ),
     "backup_open_folder": "Open folder",
     "nothing_selected": "Select at least one item.",
+    "config_dir_missing": (
+        "The selected OBS config folder doesn't exist yet, so there is nothing to back up."
+    ),
     "backup_while_running": (
         "OBS is running. Settings changed in the last moments may not be saved to disk "
         "yet. Back up anyway?"
@@ -90,6 +94,10 @@ STRINGS: dict[str, str] = {
     "no_backups": "No backups in the backup folder yet. Use “Browse…” to open one.",
     "backup_info": "Created {created} on {os} · OBS {obs} · {media} media files",
     "unknown": "unknown",
+    "unusable_names": (
+        "{count} profiles or scene collections can't be restored on this system because "
+        "of their names: {names}"
+    ),
     "invalid_backup": "This file can't be restored:\n{error}",
     "media_restore_checkbox": "Restore missing media files to:",
     "choose_media_dir": "Choose where to put restored media files",
@@ -109,6 +117,10 @@ STRINGS: dict[str, str] = {
         "\n\n{count} media files are missing on this computer and not in the backup. Fix "
         "them in OBS:\n{files}"
     ),
+    "restore_kept_current": (
+        "\n\n{count} files could not be read when this backup was made, so they are not "
+        "in it. Files of those names on this computer were left as they were:\n{files}"
+    ),
     "restore_safety_done": "\n\nYour previous state was saved to:\n{path}",
     "obs_running_title": "OBS is running",
     "obs_running_text": (
@@ -118,6 +130,15 @@ STRINGS: dict[str, str] = {
     # Errors and messages
     "error_title": "Error",
     "error_text": "Something went wrong:\n{error}",
+    "restore_failed": (
+        "The restore failed:\n{error}\n\nThe OBS config folder as it was before the "
+        "restore is saved in:\n{path}"
+    ),
+    "safety_incomplete": (
+        "The current state could not be backed up completely, so nothing was restored. "
+        "{count} files could not be read:\n{files}\n\nTo restore without backing up the "
+        "current state, untick “Back up the current state first”."
+    ),
     "language_changed": "Language changed.",
     "close_while_busy": "Please wait until the backup or restore has finished.",
 }

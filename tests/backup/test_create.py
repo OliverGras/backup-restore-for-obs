@@ -9,9 +9,9 @@ from typing import Any
 import pytest
 
 from obs_backup import backup
-from obs_backup.backup import Selection
+from obs_backup.backup import Selection, create
 
-from support import everything
+from support import everything, unreadable
 
 
 def test_backup_contents(obs: Path, tmp_path: Path) -> None:
@@ -103,8 +103,74 @@ def test_file_failing_halfway_is_left_out(
     assert result.skipped == ["global.ini"]
     assert "config/global.ini" not in names  # no truncated copy
     assert "config/user.ini" in names
+    assert backup.read_manifest(dest).skipped == ["global.ini"]  # restore must know
 
 
 def test_empty_selection_rejected(obs: Path, tmp_path: Path) -> None:
     with pytest.raises(backup.BackupError):
         backup.create_backup(obs, tmp_path / "b.zip", Selection(media=True))
+
+
+def test_unreadable_media_file_is_left_out(
+    obs: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dest = tmp_path / "b.zip"
+    with unreadable(monkeypatch, "intro.mp4"):
+        result = backup.create_backup(obs, dest, everything(obs))
+    assert [Path(s).name for s in result.skipped] == ["intro.mp4"]
+    assert [Path(r.original).name for r in backup.read_manifest(dest).media] == ["logo.png"]
+
+
+def test_error_writing_the_backup_ends_it(
+    obs: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A full disk is not a file OBS holds open: the backup fails instead of skipping."""
+    # The member being written; private, so not in the type stubs.
+    write_file: Any = vars(zipfile)["_ZipWriteFile"]
+    real_write = write_file.write
+
+    def write_(self: Any, data: Any) -> int:
+        if self._zinfo.filename == "config/user.ini":
+            raise OSError(28, "No space left on device")
+        return real_write(self, data)
+
+    monkeypatch.setattr(write_file, "write", write_)
+    dest = tmp_path / "b.zip"
+    with pytest.raises(OSError, match="No space"):
+        backup.create_backup(obs, dest, Selection(global_settings=True))
+    assert not dest.exists() and not dest.with_name("b.zip.part").exists()
+
+
+def test_existing_backup_is_never_replaced(obs: Path, tmp_path: Path) -> None:
+    dest = tmp_path / "b.zip"
+    dest.write_text("older backup")
+    with pytest.raises(backup.BackupError, match="exists"):
+        backup.create_backup(obs, dest, Selection(global_settings=True))
+    assert dest.read_text() == "older backup"
+
+
+def test_backup_being_written_is_left_alone(obs: Path, tmp_path: Path) -> None:
+    dest = tmp_path / "b.zip"
+    part = dest.with_name("b.zip.part")
+    part.write_text("another backup, still being written")
+    with pytest.raises(backup.BackupError, match="being written"):
+        backup.create_backup(obs, dest, Selection(global_settings=True))
+    assert part.read_text() == "another backup, still being written"
+
+
+def test_backups_in_the_same_second_get_numbers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        create, "default_backup_name", lambda suffix="": f"obs-backup_T{suffix}.zip"
+    )
+    first = backup.new_backup_path(tmp_path)
+    first.write_text("")
+    second = backup.new_backup_path(tmp_path)
+    second.with_name(second.name + ".part").write_text("")  # still being written
+    third = backup.new_backup_path(tmp_path)
+    assert [first.name, second.name, third.name] == [
+        "obs-backup_T.zip",
+        "obs-backup_T_2.zip",
+        "obs-backup_T_3.zip",
+    ]

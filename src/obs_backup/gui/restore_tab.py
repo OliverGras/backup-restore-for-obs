@@ -143,15 +143,17 @@ class RestoreTab(QWidget):
             self._info.setText(tr("invalid_backup", error=e))
             self.update_enabled()
             return
-        self._info.setText(
-            tr(
-                "backup_info",
-                created=m.created.replace("T", " ")[:19],
-                os=m.source_os or tr("unknown"),
-                obs=m.obs_version or tr("unknown"),
-                media=len(m.media),
-            )
+        info = tr(
+            "backup_info",
+            created=m.created.replace("T", " ")[:19],
+            os=m.source_os or tr("unknown"),
+            obs=m.obs_version or tr("unknown"),
+            media=len(m.media),
         )
+        if m.unusable:
+            names = ", ".join(m.unusable)
+            info += "\n" + tr("unusable_names", count=len(m.unusable), names=names)
+        self._info.setText(info)
         # read_manifest has checked the entries: each has its name and its folder or file.
         self._tree.populate(
             profiles=[(p["name"], p["dir"]) for p in m.profiles],
@@ -223,12 +225,18 @@ class RestoreTab(QWidget):
                 count=len(result.media_missing),
                 files=preview_list(result.media_missing),
             )
+        if result.kept_current:
+            text += tr(
+                "restore_kept_current",
+                count=len(result.kept_current),
+                files=preview_list(result.kept_current),
+            )
         if result.safety_backup:
             text += tr("restore_safety_done", path=result.safety_backup)
         QMessageBox.information(self, tr("restore_done_title"), text)
         self._show_changes()
 
-    def _on_restore_failed(self, _error: str) -> None:
+    def _on_restore_failed(self, _error: BaseException) -> None:
         # The main window shows the error. A restore can fail while it replaces
         # files, and the safety backup is new: show both.
         self._show_changes()

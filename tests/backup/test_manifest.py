@@ -1,5 +1,6 @@
 """Reading manifests and listing backups."""
 
+import json
 import os
 import zipfile
 from pathlib import Path
@@ -44,7 +45,9 @@ DAMAGED = {
     "profile dir ..": {"profiles": [{"name": "x", "dir": ".."}]},
     "profile dir ../..": {"profiles": [{"name": "x", "dir": "../.."}]},
     "profile dir with slash": {"profiles": [{"name": "x", "dir": "a/b"}]},
-    "scene file with backslash": {"scene_collections": [{"name": "x", "file": r"..\a.json"}]},
+    "scene file ..": {"scene_collections": [{"name": "x", "file": ".."}]},
+    "skipped is not a list": {"skipped": "global.ini"},
+    "skipped holds a number": {"skipped": [1]},
     "media is not an object": {"media": ["logo.png"]},
     "media with unknown key": {"media": [{"original": "/a.png", "evil": 1}]},
     "media outside media/": {"media": [{"original": "/a.png", "archive": "config/global.ini"}]},
@@ -106,9 +109,35 @@ def test_plain_names(name: str) -> None:
     assert is_plain_name(name)
 
 
-@pytest.mark.parametrize("name", ["", ".", "..", "a/b", r"a\b", "/abs", "a\0b"])
+@pytest.mark.parametrize("name", ["", ".", "..", "a/b", "/abs", "a\0b"])
 def test_names_that_are_not_plain(name: str) -> None:
     assert not is_plain_name(name)
+
+
+def test_backslash_separates_names_only_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("obs_backup.backup.layout.WINDOWS", True)
+    assert not is_plain_name(r"a\b") and not is_plain_name(r"..\a.json")
+    if os.name != "nt":  # Linux and macOS allow a backslash in a name
+        monkeypatch.setattr("obs_backup.backup.layout.WINDOWS", False)
+        assert is_plain_name(r"a\b")
+
+
+def test_names_this_system_cannot_use_are_left_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A backup from Linux stays usable on Windows, without what Windows can't hold."""
+    monkeypatch.setattr("obs_backup.backup.layout.WINDOWS", True)
+    path = craft_backup(
+        tmp_path / "linux.zip",
+        {
+            "profiles": [{"dir": "Stream"}, {"dir": r"a\b"}, {"dir": "CON"}],
+            "scene_collections": [{"file": "what?.json"}],
+        },
+    )
+    m = backup.read_manifest(path)
+    assert [p["dir"] for p in m.profiles] == ["Stream"] and m.scene_collections == []
+    assert m.unusable == [r"a\b", "CON", "what?.json"]
+    assert "unusable" not in json.loads(m.to_json())  # found when reading, not stored
 
 
 @pytest.mark.parametrize(

@@ -15,8 +15,9 @@ Works on **Windows** and **Linux**. The interface is in **English** and **German
 - **Media files, optional.** Images, videos, sounds and other files your sources point to can go into the backup. On restore, files that are missing on the computer are put into a folder you choose, and the scene collections are updated to point there. This makes moving to a new PC easy.
 - **Safe restore.**
   - Restoring is blocked while OBS is running, because OBS writes its files when it closes and would overwrite the restore.
-  - The current state is backed up before every restore.
+  - The current state is backed up before every restore. If that backup can't save a file the restore would replace, nothing is restored.
   - You choose which items to restore.
+  - Files that couldn't be read when a backup was made (usually because OBS had them open) are never deleted by restoring that backup.
 - **Plain zip files.** Every backup is a normal `.zip` with a `manifest.json`, so you can open it without this tool.
 
 ## Download

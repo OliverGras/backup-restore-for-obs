@@ -1,10 +1,13 @@
 """Restoring backups, including media remapping and unsafe archives."""
 
+import errno
 import json
+import os
 import shutil
 import sys
 import zipfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -12,7 +15,7 @@ from obs_backup import backup
 from obs_backup.backup import Selection
 from obs_backup.backup.restore import safe_target
 
-from support import corrupt_member, craft_backup, everything, replace_member, write
+from support import corrupt_member, craft_backup, everything, replace_member, unreadable, write
 
 
 def test_restore_to_new_machine_remaps_missing_media(
@@ -356,8 +359,9 @@ def test_existing_media_reused_only_with_the_same_contents(tmp_path: Path) -> No
     assert (media_dir / "logo_2.png").read_text() == "AAAA"
 
     # Restoring again reuses the copy restored the first time.
-    backup.restore_backup(dest, tmp_path / "again", sel, media_dir)
+    result = backup.restore_backup(dest, tmp_path / "again", sel, media_dir)
     assert _restored_paths(tmp_path / "again") == [(media_dir / "logo_2.png").as_posix()]
+    assert result.media_restored == 0  # nothing copied
     assert sorted(p.name for p in media_dir.iterdir()) == ["logo.png", "logo_2.png"]
 
 
@@ -420,3 +424,169 @@ def test_no_safety_backup_without_folder(obs: Path, tmp_path: Path) -> None:
     backup.create_backup(obs, dest, Selection(global_settings=True))
     result = backup.restore_with_safety_backup(dest, obs, Selection(global_settings=True))
     assert result.safety_backup is None and result.files == 3
+
+
+def test_incomplete_safety_backup_stops_the_restore(
+    obs: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dest = tmp_path / "b.zip"
+    sel = Selection(global_settings=True)
+    backup.create_backup(obs, dest, sel)
+    write(obs / "global.ini", "[General]\nchanged=1\n")
+    before = {f: (obs / f).read_bytes() for f in _files(obs)}
+    safety_dir = tmp_path / "safety"
+
+    # user.ini would be replaced, but the safety backup can't hold it.
+    with (
+        unreadable(monkeypatch, "user.ini"),
+        pytest.raises(backup.IncompleteSafetyBackupError) as info,
+    ):
+        backup.restore_with_safety_backup(dest, obs, sel, safety_dir=safety_dir)
+    assert info.value.skipped == ["user.ini"]
+    assert {f: (obs / f).read_bytes() for f in _files(obs)} == before
+    assert list(safety_dir.iterdir()) == []  # the incomplete safety backup is removed
+
+
+def test_unreadable_file_the_restore_leaves_alone_does_not_stop_it(
+    obs: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dest = tmp_path / "b.zip"
+    sel = Selection(global_settings=True)
+    backup.create_backup(obs, dest, sel)
+    with unreadable(monkeypatch, "service.json"):  # in a profile, which is not restored
+        result = backup.restore_with_safety_backup(dest, obs, sel, safety_dir=tmp_path / "s")
+    assert result.safety_backup is not None and result.safety_backup.is_file()
+
+
+# --- parts of the config folder the backup holds only partly ----------------------------
+
+
+def test_profile_backed_up_partly_keeps_the_missing_files(
+    obs: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dest = tmp_path / "b.zip"
+    sel = Selection(profiles=["Twitch_Stream"])
+    with unreadable(monkeypatch, "service.json"):
+        backup.create_backup(obs, dest, sel)
+    profile = obs / "basic/profiles/Twitch_Stream"
+    write(profile / "basic.ini", "[General]\nName=Changed\n")
+
+    result = backup.restore_backup(dest, obs, sel)
+    assert (profile / "service.json").read_text() == '{"settings": {"key": "secret"}}'
+    assert "Twitch Stream" in (profile / "basic.ini").read_text()
+    assert result.kept_current == ["basic/profiles/Twitch_Stream/service.json"]
+
+
+def test_browser_data_replaces_files_written_since(obs: Path, tmp_path: Path) -> None:
+    """Chromium's databases must not meet newer journal or log files."""
+    dest = tmp_path / "b.zip"
+    sel = Selection(browser_data=True)
+    backup.create_backup(obs, dest, sel)
+    browser = obs / "plugin_config/obs-browser"
+    write(browser / "Cookies-journal", "journal of a newer database")
+    write(browser / "Local Storage/leveldb/000009.log", "newer log")
+
+    backup.restore_backup(dest, obs, sel)
+    assert not (browser / "Cookies-journal").exists()
+    assert not (browser / "Local Storage/leveldb/000009.log").exists()
+    assert (browser / "Cookies").read_text() == "cookies"
+    assert (browser / "Cache/data_0").exists()  # caches are not in backups and stay
+
+
+def test_browser_data_backed_up_partly_is_restored_over_current(
+    obs: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    browser = obs / "plugin_config/obs-browser"
+    write(browser / "Preferences", "old prefs")
+    dest = tmp_path / "b.zip"
+    sel = Selection(browser_data=True)
+    with unreadable(monkeypatch, "Cookies"):
+        backup.create_backup(obs, dest, sel)
+    write(browser / "Cookies", "newer cookies")
+    write(browser / "Preferences", "newer prefs")
+
+    result = backup.restore_backup(dest, obs, sel)
+    assert (browser / "Preferences").read_text() == "old prefs"
+    assert (browser / "Cookies").read_text() == "newer cookies"  # not in the backup: kept
+    assert result.kept_current == ["plugin_config/obs-browser/Cookies"]
+
+
+# --- something on disk in the way ---------------------------------------------------------
+
+
+def test_folder_in_the_way_stops_before_any_change(obs: Path, tmp_path: Path) -> None:
+    dest = tmp_path / "b.zip"
+    sel = Selection(scene_collections=["Other.json"], global_settings=True)
+    backup.create_backup(obs, dest, sel)
+    (obs / "basic/scenes/Other.json").unlink()
+    (obs / "basic/scenes/Other.json").mkdir()
+    write(obs / "global.ini", "changed")
+
+    with pytest.raises(backup.BackupError, match="in the way"):
+        backup.restore_backup(dest, obs, sel)
+    assert (obs / "global.ini").read_text() == "changed"
+
+
+def test_file_in_the_way_of_a_folder_stops_before_any_change(obs: Path, tmp_path: Path) -> None:
+    dest = tmp_path / "b.zip"
+    sel = Selection(global_settings=True)  # holds plugin_manager/modules.json
+    backup.create_backup(obs, dest, sel)
+    shutil.rmtree(obs / "plugin_manager")
+    write(obs / "plugin_manager", "a file, not a folder")
+    write(obs / "global.ini", "changed")
+
+    with pytest.raises(backup.BackupError, match="not a folder"):
+        backup.restore_backup(dest, obs, sel)
+    assert (obs / "global.ini").read_text() == "changed"
+
+
+def test_file_where_an_emptied_profile_folder_goes_stops_before_any_change(
+    obs: Path, tmp_path: Path
+) -> None:
+    dest = tmp_path / "b.zip"
+    sel = Selection(profiles=["Unbenannt"], global_settings=True)
+    backup.create_backup(obs, dest, sel)
+    shutil.rmtree(obs / "basic/profiles/Unbenannt")
+    write(obs / "basic/profiles/Unbenannt", "a file, not a folder")
+    write(obs / "global.ini", "changed")
+
+    with pytest.raises(backup.BackupError, match="not a folder"):
+        backup.restore_backup(dest, obs, sel)
+    assert (obs / "global.ini").read_text() == "changed"
+
+
+def _replace_failing_from_staging(monkeypatch: pytest.MonkeyPatch, error: OSError) -> None:
+    """``os.replace`` fails for files unpacked to the restore's temporary folder."""
+    real_replace = os.replace
+
+    def replace(src: Any, dst: Any) -> None:
+        if Path(src).parent.name.startswith(".restore-"):
+            raise error
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", replace)
+
+
+def test_restore_onto_another_drive_copies(
+    obs: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dest = tmp_path / "b.zip"
+    sel = Selection(global_settings=True)
+    backup.create_backup(obs, dest, sel)
+    write(obs / "global.ini", "changed")
+    _replace_failing_from_staging(monkeypatch, OSError(errno.EXDEV, "another drive"))
+
+    backup.restore_backup(dest, obs, sel)
+    assert "Language=de-DE" in (obs / "global.ini").read_text()
+    assert not list(obs.rglob("*.restore-tmp"))
+
+
+def test_other_errors_moving_a_file_are_not_hidden(
+    obs: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dest = tmp_path / "b.zip"
+    sel = Selection(global_settings=True)
+    backup.create_backup(obs, dest, sel)
+    _replace_failing_from_staging(monkeypatch, PermissionError(errno.EACCES, "denied"))
+    with pytest.raises(PermissionError):
+        backup.restore_backup(dest, obs, sel)

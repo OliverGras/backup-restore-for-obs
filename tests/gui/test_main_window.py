@@ -3,7 +3,9 @@
 Skipped where Qt can't be loaded (e.g. a server without graphics libraries).
 """
 
+import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -16,7 +18,8 @@ from PySide6.QtWidgets import QApplication, QMenuBar, QMessageBox  # noqa: E402
 
 from obs_backup import backup  # noqa: E402
 from obs_backup.gui.helpers import documents_dir  # noqa: E402
-from obs_backup.gui.main_window import MainWindow  # noqa: E402
+from obs_backup.gui.install_panel import InstallPanel  # noqa: E402
+from obs_backup.gui.main_window import MainWindow, error_message  # noqa: E402
 from obs_backup.gui.settings import AppSettings  # noqa: E402
 from obs_backup.gui.tasks import TaskRunner  # noqa: E402
 from obs_backup.i18n import DEFAULT, LANGUAGES, set_language, tr  # noqa: E402
@@ -28,6 +31,13 @@ from support import craft_backup, everything  # noqa: E402
 def app() -> QApplication:
     existing = QApplication.instance()
     return existing if isinstance(existing, QApplication) else QApplication([])
+
+
+def _wait_until(done: Callable[[], bool], app: QApplication) -> None:
+    deadline = time.monotonic() + 10
+    while not done():
+        assert time.monotonic() < deadline, "timed out"
+        app.processEvents()
 
 
 @pytest.fixture
@@ -80,17 +90,14 @@ def test_media_counted_once_per_change(
 ) -> None:
     tab = window.backup_tab
     tab._media_check.setChecked(True)
+    _wait_until(lambda: tab._media_label.text().startswith("2 "), app)  # counted in the background
     scans: list[object] = []
     real_scan = backup.scan_media
     monkeypatch.setattr(backup, "scan_media", lambda *a: scans.append(a) or real_scan(*a))
 
     tab._tree.set_all(False)  # unchecks every profile and scene collection: many changes
-    deadline = time.monotonic() + 5
-    while not scans and time.monotonic() < deadline:
-        app.processEvents()
-    app.processEvents()
+    _wait_until(lambda: tab._media_label.text().startswith("0 "), app)
     assert len(scans) == 1
-    assert tab._media_label.text().startswith("0 ")
 
 
 @pytest.mark.parametrize("text", ["", "  ", "relative/folder"])
@@ -165,3 +172,42 @@ def test_media_options_off_for_backup_that_cannot_be_read(
 
     tab.refresh_backups(select=craft_backup(tmp_path / "bad.zip", {"format_version": None}))
     assert not tab._media_check.isEnabled() and not tab._media_dir.isEnabled()
+
+
+def test_config_folder_cannot_change_during_a_task(window: MainWindow, app: QApplication) -> None:
+    release = threading.Event()
+    window._tasks.run("x", lambda progress: release.wait(10), on_done=lambda _: None)
+    try:
+        assert not window.install.isEnabled()
+    finally:
+        release.set()
+    _wait_until(lambda: not window._tasks.busy, app)
+    assert window.install.isEnabled()
+
+
+def test_backup_of_missing_config_folder_says_why(
+    window: MainWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(InstallPanel, "config_dir", property(lambda self: tmp_path / "missing"))
+    told: list[str] = []
+    monkeypatch.setattr(QMessageBox, "information", lambda parent, title, text: told.append(text))
+    window.backup_tab._start_backup()
+    assert told == [tr("config_dir_missing")]
+
+
+def test_errors_are_worded_in_the_chosen_language(window: MainWindow) -> None:
+    window.change_language("de")
+    failed = error_message(backup.RestoreFailedError(OSError("kaputt"), Path("safety.zip")))
+    assert failed.startswith("Die Wiederherstellung ist fehlgeschlagen") and "kaputt" in failed
+    incomplete = error_message(backup.IncompleteSafetyBackupError(["global.ini"]))
+    assert "global.ini" in incomplete and "Vorher den aktuellen Stand sichern" in incomplete
+
+
+def test_names_this_system_cannot_use_are_shown(
+    window: MainWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("obs_backup.backup.layout.WINDOWS", True)
+    path = craft_backup(tmp_path / "linux.zip", {"profiles": [{"dir": "Stream"}, {"dir": "CON"}]})
+    window.restore_tab.refresh_backups(select=path)
+    assert "CON" in window.restore_tab._info.text()
+    assert window.restore_tab._tree.topLevelItemCount() == 1  # the profiles group, with Stream

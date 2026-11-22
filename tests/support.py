@@ -1,10 +1,14 @@
 """Helpers shared by the tests (importable because pytest adds tests/ to the path)."""
 
+import contextlib
 import json
 import struct
 import zipfile
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 from obs_backup import backup
 from obs_backup.backup import Selection
@@ -60,3 +64,18 @@ def replace_member(zip_path: Path, name: str, text: str) -> None:
     with zipfile.ZipFile(zip_path, "w") as zf:
         for n, data in members.items():
             zf.writestr(n, data)
+
+
+@contextlib.contextmanager
+def unreadable(monkeypatch: pytest.MonkeyPatch, name: str) -> Iterator[None]:
+    """Files called ``name`` can't be opened for reading (as files OBS holds locked)."""
+    real_open = Path.open
+
+    def open_(self: Path, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+        if self.name == name and "r" in mode:
+            raise PermissionError(f"locked: {self}")
+        return real_open(self, mode, *args, **kwargs)
+
+    with monkeypatch.context() as m:
+        m.setattr(Path, "open", open_)
+        yield

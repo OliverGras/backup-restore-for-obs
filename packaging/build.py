@@ -44,8 +44,14 @@ def app_version() -> str:
 
 
 def write_windows_version_info(version: str) -> Path:
-    """Version resource (file properties → Details) for the Windows .exe."""
-    nums = tuple((list(map(int, re.findall(r"\d+", version)[:4])) + [0, 0, 0, 0])[:4])
+    """Version resource (file properties → Details) for the Windows .exe.
+
+    The numeric file version holds the release numbers only: 1.0.0rc1 -> 1.0.0.0
+    (taking every number would make it 1.0.0.1). The text fields keep the full version.
+    """
+    release = re.match(r"\d+(?:\.\d+)*", version)
+    numbers = [int(n) for n in release.group().split(".")] if release else []
+    nums = tuple((numbers + [0, 0, 0, 0])[:4])
     content = f"""VSVersionInfo(
   ffi=FixedFileInfo(filevers={nums}, prodvers={nums}, mask=0x3f, flags=0x0,
                     OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)),

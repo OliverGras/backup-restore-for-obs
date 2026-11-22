@@ -1,5 +1,6 @@
 """Restore a backup file into an OBS config folder."""
 
+import errno
 import json
 import os
 import shutil
@@ -10,9 +11,15 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from obs_backup.backup.collect import safety_selection
-from obs_backup.backup.create import create_backup, default_backup_name
-from obs_backup.backup.errors import ZIP_ERRORS, InvalidBackupError, RestoreFailedError
+from obs_backup.backup.collect import browser_files, safety_selection
+from obs_backup.backup.create import create_backup, new_backup_path
+from obs_backup.backup.errors import (
+    ZIP_ERRORS,
+    BackupError,
+    IncompleteSafetyBackupError,
+    InvalidBackupError,
+    RestoreFailedError,
+)
 from obs_backup.backup.layout import CONFIG_PREFIX, can_create, creatable_name, is_plain_name
 from obs_backup.backup.manifest import Manifest, read_manifest
 from obs_backup.backup.models import MediaRef, Progress, RestoreResult, Selection
@@ -95,10 +102,21 @@ def _empty(folder: Path) -> None:
 
 
 def _move(src: Path, dst: Path) -> None:
+    """Move the unpacked file ``src`` to ``dst``, replacing the file there."""
     try:
         os.replace(src, dst)
-    except OSError:
-        shutil.move(src, dst)  # dst on another drive (a linked folder): copy instead
+    except OSError as e:
+        if e.errno != errno.EXDEV:
+            raise
+        # dst is on another drive (a linked folder): copy it next to dst, then rename.
+        tmp = dst.with_name(f".{dst.name}.restore-tmp")
+        try:
+            shutil.copyfile(src, tmp)
+            os.replace(tmp, dst)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
+        src.unlink()
 
 
 def _crc32(path: Path) -> int:
@@ -196,9 +214,36 @@ class _Plan:
 
     targets: dict[str, Path]  # config member -> where it goes
     scenes: dict[str, str]  # config member -> scene collection with rewritten media paths
-    profile_dirs: list[Path]  # emptied before the profile's files are restored
+    emptied: list[Path]  # profile folders emptied before their files are restored
+    stale: list[Path]  # browser data files removed before the backup's are restored
     media: list[tuple[MediaRef, Path]]  # media file -> where it goes
     media_missing: list[str]
+    kept_current: list[str]  # selected files the backup lacks: the current ones stay
+
+
+def _holds(rels: list[str], folder: str) -> bool:
+    """Whether any of the config paths ``rels`` is inside ``folder``."""
+    return any(r.startswith(f"{folder}/") for r in rels)
+
+
+def _check_fits(target: Path, emptied: list[Path], removed: set[Path]) -> None:
+    """Raise unless ``target`` can be written: no file or folder is in its way.
+
+    Checked before anything changes, so that a folder where the backup has a file
+    (or a file where it needs a folder) doesn't stop the restore halfway.
+    """
+    folders = target.parents
+    if (outer := next((f for f in emptied if f in target.parents), None)) is not None:
+        folders = [outer, *outer.parents]  # emptied first: only the folder itself counts
+    elif target.is_dir():
+        raise BackupError(f"can't restore {target}: a folder of that name is in the way")
+    for folder in folders:
+        if folder in removed:
+            continue
+        if folder.exists():
+            if not folder.is_dir():
+                raise BackupError(f"can't restore {target}: {folder} is a file, not a folder")
+            return
 
 
 def _plan(
@@ -218,16 +263,36 @@ def _plan(
         scenes = {
             name: _rewritten_scene(zf, name, mapping) for name in members if name in scene_members
         }
+    targets = {name: _config_target(config_dir, name) for name in members}
+
+    # A profile or the browser data replaces what is there only if the backup holds
+    # all of it. Files that could not be read when the backup was made would be
+    # lost otherwise; instead, the backup's files are restored over the current ones.
+    rels = [name[len(CONFIG_PREFIX) :] for name in members]
+    complete = {
+        folder
+        for folder in (*(f"{_PROFILES}/{d}" for d in sel.profiles), _BROWSER)
+        if _holds(rels, folder) and not _holds(manifest.skipped, folder)
+    }
+    emptied = [
+        safe_target(config_dir / obs_config.PROFILES_DIR, d)
+        for d in sel.profiles
+        if f"{_PROFILES}/{d}" in complete
+    ]
+    # Chromium's databases must not meet journal or log files written after the backup.
+    stale = browser_files(config_dir) if sel.browser_data and _BROWSER in complete else []
+
+    removed = set(stale)
+    for target in [*targets.values(), *(target for _, target in media)]:
+        _check_fits(target, emptied, removed)
     return _Plan(
-        targets={name: _config_target(config_dir, name) for name in members},
+        targets=targets,
         scenes=scenes,
-        profile_dirs=[
-            safe_target(config_dir / obs_config.PROFILES_DIR, d)
-            for d in sel.profiles
-            if any(m.startswith(f"{CONFIG_PREFIX}{_PROFILES}/{d}/") for m in members)
-        ],
+        emptied=emptied,
+        stale=stale,
         media=media,
         media_missing=media_missing,
+        kept_current=[rel for rel in manifest.skipped if _is_selected(rel, sel)],
     )
 
 
@@ -252,18 +317,22 @@ def _apply(
             else:
                 _unpack(zf, name, unpacked)
             moves.append((unpacked, target))
+        media_copied = 0
         for n, (ref, target) in enumerate(plan.media, len(plan.targets)):
             if progress:
                 progress(n, total, ref.original)
             if not target.exists():  # otherwise: the same file, restored before
                 _unpack(zf, ref.archive, staging / str(n))
                 moves.append((staging / str(n), target))
+                media_copied += 1
 
-        # 2. Replace. Profile folders are emptied first, so files deleted since
-        # the backup don't linger.
-        for folder in plan.profile_dirs:
+        # 2. Replace. Profile folders and browser data are cleared first, so files
+        # deleted since the backup don't linger.
+        for folder in plan.emptied:
             if folder.is_dir():
                 _empty(folder)
+        for path in plan.stale:
+            path.unlink(missing_ok=True)
         for unpacked, target in moves:
             target.parent.mkdir(parents=True, exist_ok=True)
             _move(unpacked, target)
@@ -275,8 +344,9 @@ def _apply(
         progress(total, total, "")
     return RestoreResult(
         files=len(plan.targets),
-        media_restored=len(plan.media),
+        media_restored=media_copied,
         media_missing=plan.media_missing,
+        kept_current=plan.kept_current,
     )
 
 
@@ -290,7 +360,8 @@ def _restore(
 ) -> RestoreResult:
     _check_names(sel)
     manifest = read_manifest(zip_path)
-    config_dir = Path(config_dir)
+    # Absolute, so that the planned paths compare equal to the ones found on disk.
+    config_dir = Path(config_dir).absolute()
     if media_dir is not None:
         # Scene collections need absolute paths; OBS resolves relative ones elsewhere.
         media_dir = Path(media_dir).absolute()
@@ -338,8 +409,11 @@ def restore_with_safety_backup(
 
     The safety backup is made once the backup to restore has passed its checks, so
     an unsafe or broken backup doesn't leave a needless safety backup behind.
-    Without ``safety_dir`` no safety backup is made. If the restore fails after the
-    safety backup was written, the error is a ``RestoreFailedError`` naming it.
+    Without ``safety_dir`` no safety backup is made. If the safety backup can't
+    read a file that the restore could replace or delete, it is deleted and
+    ``IncompleteSafetyBackupError`` is raised before anything changes. If the
+    restore fails after the safety backup was written, the error is a
+    ``RestoreFailedError`` naming it.
     """
     config_dir = Path(config_dir)
     safety_path: Path | None = None
@@ -349,10 +423,15 @@ def restore_with_safety_backup(
         if safety_dir is None or not config_dir.is_dir():
             return
         full = safety_selection(config_dir, sel)
-        if not full.is_empty():
-            path = Path(safety_dir) / default_backup_name("_before-restore")
-            create_backup(config_dir, path, full, progress)
-            safety_path = path  # only once it exists
+        if full.is_empty():
+            return
+        path = new_backup_path(Path(safety_dir), "_before-restore")
+        made = create_backup(config_dir, path, full, progress)
+        # Unreadable files elsewhere don't matter: the restore leaves them alone.
+        if at_risk := [rel for rel in made.skipped if _is_selected(rel, sel)]:
+            path.unlink()
+            raise IncompleteSafetyBackupError(at_risk)
+        safety_path = path  # only once it exists
 
     try:
         result = _restore(zip_path, config_dir, sel, media_dir, progress, back_up_current_state)

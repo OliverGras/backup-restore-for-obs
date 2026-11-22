@@ -63,6 +63,7 @@ STRINGS: dict[str, str] = {
     # Back up tab
     "media_checkbox": "Mediendateien der Szenen einschließen (Bilder, Videos, Sounds …)",
     "media_summary": "{count} Mediendateien, {size}",
+    "media_counting": "Mediendateien werden gezählt…",
     "backup_dir_label": "Speichern in:",
     "choose_backup_dir": "Backup-Ordner wählen",
     "btn_backup": "Backup erstellen",
@@ -76,6 +77,10 @@ STRINGS: dict[str, str] = {
     ),
     "backup_open_folder": "Ordner öffnen",
     "nothing_selected": "Wähle mindestens einen Eintrag aus.",
+    "config_dir_missing": (
+        "Der gewählte OBS-Konfigurationsordner existiert noch nicht, es gibt also nichts "
+        "zu sichern."
+    ),
     "backup_while_running": (
         "OBS läuft. Gerade erst geänderte Einstellungen sind evtl. noch nicht "
         "gespeichert. Trotzdem sichern?"
@@ -87,6 +92,10 @@ STRINGS: dict[str, str] = {
     "no_backups": "Noch keine Backups im Backup-Ordner. Mit „Durchsuchen…“ eins öffnen.",
     "backup_info": "Erstellt {created} unter {os} · OBS {obs} · {media} Mediendateien",
     "unknown": "unbekannt",
+    "unusable_names": (
+        "{count} Profile oder Szenensammlungen können auf diesem System wegen ihres "
+        "Namens nicht wiederhergestellt werden: {names}"
+    ),
     "invalid_backup": "Diese Datei kann nicht wiederhergestellt werden:\n{error}",
     "media_restore_checkbox": "Fehlende Mediendateien wiederherstellen nach:",
     "choose_media_dir": "Ordner für wiederhergestellte Mediendateien wählen",
@@ -106,6 +115,10 @@ STRINGS: dict[str, str] = {
         "\n\n{count} Mediendateien fehlen auf diesem Computer und sind nicht im Backup. "
         "Bitte in OBS korrigieren:\n{files}"
     ),
+    "restore_kept_current": (
+        "\n\n{count} Dateien konnten beim Erstellen dieses Backups nicht gelesen werden und "
+        "fehlen darin. Gleichnamige Dateien auf diesem Computer blieben unverändert:\n{files}"
+    ),
     "restore_safety_done": "\n\nDein vorheriger Stand wurde gesichert unter:\n{path}",
     "obs_running_title": "OBS läuft",
     "obs_running_text": (
@@ -115,6 +128,16 @@ STRINGS: dict[str, str] = {
     # Errors and messages
     "error_title": "Fehler",
     "error_text": "Etwas ist schiefgelaufen:\n{error}",
+    "restore_failed": (
+        "Die Wiederherstellung ist fehlgeschlagen:\n{error}\n\nDer "
+        "OBS-Konfigurationsordner vor der Wiederherstellung ist gesichert unter:\n{path}"
+    ),
+    "safety_incomplete": (
+        "Der aktuelle Stand konnte nicht vollständig gesichert werden, daher wurde nichts "
+        "wiederhergestellt. {count} Dateien konnten nicht gelesen werden:\n{files}\n\n"
+        "Um ohne Sicherung des aktuellen Stands wiederherzustellen, „Vorher den aktuellen "
+        "Stand sichern“ abwählen."
+    ),
     "language_changed": "Sprache geändert.",
     "close_while_busy": "Bitte warte, bis das Backup oder die Wiederherstellung fertig ist.",
 }

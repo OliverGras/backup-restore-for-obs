@@ -40,6 +40,15 @@ def _is_browser_skip_file(name: str) -> bool:
     return name in obs_config.BROWSER_SKIP_FILES or name.endswith(".pma")
 
 
+def browser_files(config_dir: Path) -> list[Path]:
+    """The browser data a backup holds: everything but caches and lock files."""
+    return walk_files(
+        config_dir / obs_config.BROWSER_DIR,
+        skip_dir=_is_browser_cache_dir,
+        skip_file=_is_browser_skip_file,
+    )
+
+
 def collect_files(config_dir: Path, sel: Selection) -> list[Path]:
     """Files under ``config_dir`` that ``sel`` covers (without media)."""
     # Python 3.15 allows [*walk_files(...) for d in ...] (PEP 798), but Pyright/Pylance
@@ -63,11 +72,7 @@ def collect_files(config_dir: Path, sel: Selection) -> list[Path]:
             for path in walk_files(child)
         ]
     if sel.browser_data:
-        files += walk_files(
-            config_dir / obs_config.BROWSER_DIR,
-            skip_dir=_is_browser_cache_dir,
-            skip_file=_is_browser_skip_file,
-        )
+        files += browser_files(config_dir)
     if sel.plugins:
         files += walk_files(config_dir / obs_config.PLUGINS_DIR)
     return files

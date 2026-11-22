@@ -13,15 +13,25 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from obs_backup import backup
 from obs_backup.gui.about import show_about
 from obs_backup.gui.backup_tab import BackupTab
 from obs_backup.gui.constants import WINDOW_SIZE
-from obs_backup.gui.helpers import open_folder
+from obs_backup.gui.helpers import open_folder, preview_list
 from obs_backup.gui.install_panel import InstallPanel
 from obs_backup.gui.restore_tab import RestoreTab
 from obs_backup.gui.settings import AppSettings
-from obs_backup.gui.tasks import TaskRunner
+from obs_backup.gui.tasks import LatestCall, TaskRunner
 from obs_backup.i18n import LANGUAGES, current_language, set_language, tr
+
+
+def error_message(error: BaseException) -> str:
+    """The text shown for an error that a backup or restore raised."""
+    if isinstance(error, backup.RestoreFailedError):
+        return tr("restore_failed", error=error.reason, path=error.safety_backup)
+    if isinstance(error, backup.IncompleteSafetyBackupError):
+        return tr("safety_incomplete", count=len(error.skipped), files=preview_list(error.skipped))
+    return tr("error_text", error=str(error) or type(error).__name__)
 
 
 class MainWindow(QMainWindow):
@@ -33,6 +43,8 @@ class MainWindow(QMainWindow):
         self._tasks.progress.connect(self._on_task_progress)
         self._tasks.ended.connect(self._on_task_ended)
         self._tasks.failed.connect(self._on_task_failed)
+        # Counts media in the background; kept across language changes.
+        self._media_counter = LatestCall(self)
 
         self._progress = QProgressBar()
         self._progress.setMaximumWidth(260)
@@ -49,7 +61,7 @@ class MainWindow(QMainWindow):
         self._build_menu()
 
         self.install = InstallPanel(self._settings, self._tasks)
-        self.backup_tab = BackupTab(self._settings, self._tasks, self.install)
+        self.backup_tab = BackupTab(self._settings, self._tasks, self.install, self._media_counter)
         self.restore_tab = RestoreTab(self._settings, self._tasks, self.install)
         self._tabs = QTabWidget()
         self._tabs.addTab(self.backup_tab, tr("tab_backup"))
@@ -117,6 +129,8 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _on_task_started(self, message: str) -> None:
+        # The config folder must not change while a task works on it.
+        self.install.setEnabled(False)
         self._tabs.setEnabled(False)
         self.statusBar().showMessage(message)
         self._progress.setRange(0, 0)
@@ -133,16 +147,18 @@ class MainWindow(QMainWindow):
     def _on_task_ended(self) -> None:
         self._progress.hide()
         self.statusBar().clearMessage()
+        self.install.setEnabled(True)
         self._tabs.setEnabled(True)
         self.restore_tab.update_enabled()
 
-    @Slot(str)
-    def _on_task_failed(self, error: str) -> None:
-        QMessageBox.critical(self, tr("error_title"), tr("error_text", error=error))
+    @Slot(object)
+    def _on_task_failed(self, error: BaseException) -> None:
+        QMessageBox.critical(self, tr("error_title"), error_message(error))
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 (Qt API)
         if self._tasks.busy:
             event.ignore()
             QMessageBox.information(self, tr("app_title"), tr("close_while_busy"))
             return
+        self._media_counter.stop()
         super().closeEvent(event)

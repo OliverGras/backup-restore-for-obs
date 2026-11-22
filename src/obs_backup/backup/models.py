@@ -54,4 +54,7 @@ class RestoreResult:
     files: int
     media_restored: int = 0
     media_missing: list[str] = field(default_factory=list)
+    # Selected files that could not be read when the backup was made, so are not in
+    # it; files of those names in the config folder were left as they were.
+    kept_current: list[str] = field(default_factory=list)
     safety_backup: Path | None = None

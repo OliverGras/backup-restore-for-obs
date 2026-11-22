@@ -27,12 +27,19 @@ def is_plain_name(name: str) -> bool:
 
     Profile folders, scene collection files and media file names come from the
     backup's manifest, so they must not be able to point anywhere else
-    (``..``, ``a/b``, or ``C:x`` on Windows).
+    (``..``, ``a/b``, or ``a\\b`` and ``C:x`` on Windows). Linux and macOS allow a
+    backslash in a name.
     """
-    if name in ("", ".", "..") or any(c in name for c in "/\\\0"):
+    separators = "/\\" if WINDOWS else "/"
+    if is_impossible_name(name) or any(c in name for c in separators):
         return False
     path = Path(name)
     return len(path.parts) == 1 and path.name == name
+
+
+def is_impossible_name(name: str) -> bool:
+    """Whether no OS has a file or folder called ``name`` (``..``, ``a/b``)."""
+    return name in ("", ".", "..") or "/" in name or "\0" in name
 
 
 def can_create(rel: str) -> bool:
