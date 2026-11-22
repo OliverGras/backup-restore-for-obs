@@ -51,6 +51,12 @@ pythonpath = ["src", "tests"]  # tests/ for the shared helpers in tests/support.
 testpaths = ["tests"]
 addopts = ["--import-mode=importlib"]
 
+# Pylance / Pyright in the editor: check against Python 3.15 and the uv environment.
+[tool.pyright]
+pythonVersion = "3.15"
+venvPath = "."
+venv = ".venv"
+
 [tool.ruff]
 line-length = 100
 target-version = "py315"

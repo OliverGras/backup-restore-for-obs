@@ -42,7 +42,11 @@ def _is_browser_skip_file(name: str) -> bool:
 
 def collect_files(config_dir: Path, sel: Selection) -> list[Path]:
     """Files under ``config_dir`` that ``sel`` covers (without media)."""
-    files = [*walk_files(config_dir / obs_config.PROFILES_DIR / d) for d in sel.profiles]
+    # Python 3.15 allows [*walk_files(...) for d in ...] (PEP 798), but Pyright/Pylance
+    # 1.1.414 still reports it as a syntax error, so nested comprehensions are used here.
+    files = [
+        path for d in sel.profiles for path in walk_files(config_dir / obs_config.PROFILES_DIR / d)
+    ]
     files += [
         path
         for f in sel.scene_collections
@@ -50,12 +54,13 @@ def collect_files(config_dir: Path, sel: Selection) -> list[Path]:
     ]
     if sel.global_settings:
         files += [config_dir / f for f in obs_config.GLOBAL_FILES if (config_dir / f).is_file()]
-        files += [*walk_files(config_dir / d) for d in obs_config.GLOBAL_DIRS]
+        files += [path for d in obs_config.GLOBAL_DIRS for path in walk_files(config_dir / d)]
     if sel.plugin_config and (root := config_dir / obs_config.PLUGIN_CONFIG_DIR).is_dir():
         files += [
-            *walk_files(child)
+            path
             for child in sorted(root.iterdir())
             if child.name != obs_config.BROWSER_DIR.name
+            for path in walk_files(child)
         ]
     if sel.browser_data:
         files += walk_files(
