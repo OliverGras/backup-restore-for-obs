@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QFormLayout,
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from obs_backup import backup
+from obs_backup.gui.constants import MEDIA_SUMMARY_DELAY_MS
 from obs_backup.gui.helpers import format_size, open_folder, preview_list
 from obs_backup.gui.install_panel import InstallPanel
 from obs_backup.gui.selection_tree import SelectionTree, selection_buttons
@@ -43,7 +44,12 @@ class BackupTab(QWidget):
         self._install = install
 
         self._tree = SelectionTree()
-        self._tree.itemChanged.connect(lambda *_: self._update_media_summary())
+        # Checking a group changes every item in it; count the media once afterwards.
+        self._media_timer = QTimer(self)
+        self._media_timer.setSingleShot(True)
+        self._media_timer.setInterval(MEDIA_SUMMARY_DELAY_MS)
+        self._media_timer.timeout.connect(self._update_media_summary)
+        self._tree.itemChanged.connect(lambda *_: self._media_timer.start())
 
         self._media_check = QCheckBox(tr("media_checkbox"))
         self._media_check.setChecked(settings.include_media)

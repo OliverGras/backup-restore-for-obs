@@ -3,6 +3,7 @@
 Skipped where Qt can't be loaded (e.g. a server without graphics libraries).
 """
 
+import time
 from pathlib import Path
 
 import pytest
@@ -69,6 +70,24 @@ def test_refresh_lists_each_backup_once(
     window.restore_tab.refresh_backups()
     assert window.restore_tab._combo.count() == 1
     assert window.restore_tab.selected_backup() == path
+
+
+def test_media_counted_once_per_change(
+    window: MainWindow, app: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tab = window.backup_tab
+    tab._media_check.setChecked(True)
+    scans: list[object] = []
+    real_scan = backup.scan_media
+    monkeypatch.setattr(backup, "scan_media", lambda *a: scans.append(a) or real_scan(*a))
+
+    tab._tree.set_all(False)  # unchecks every profile and scene collection: many changes
+    deadline = time.monotonic() + 5
+    while not scans and time.monotonic() < deadline:
+        app.processEvents()
+    app.processEvents()
+    assert len(scans) == 1
+    assert tab._media_label.text().startswith("0 ")
 
 
 @pytest.mark.parametrize("text", ["", "  ", "relative/folder"])

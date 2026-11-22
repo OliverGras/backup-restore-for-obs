@@ -6,6 +6,8 @@ import shutil
 import tempfile
 import zipfile
 import zlib
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from obs_backup.backup.collect import safety_selection
@@ -139,11 +141,12 @@ def _plan_media(
     sel: Selection,
     media_dir: Path | None,
     infos: dict[str, zipfile.ZipInfo],
-    result: RestoreResult,
-) -> tuple[list[tuple[MediaRef, Path]], dict[str, str]]:
-    """Media files to extract, and the path rewrites for the scene collections."""
+) -> tuple[list[tuple[MediaRef, Path]], dict[str, str], list[str]]:
+    """Media files to extract, the path rewrites for the scene collections, and
+    the media files that are missing and can't be restored."""
     jobs: list[tuple[MediaRef, Path]] = []
     mapping: dict[str, str] = {}
+    missing: list[str] = []
     taken: set[Path] = set()
     for ref in manifest.media:
         if not set(ref.used_by) & set(sel.scene_collections):
@@ -156,12 +159,12 @@ def _plan_media(
         name = creatable_name(file_name(ref.original))
         info = infos.get(ref.archive)
         if sel.media and media_dir is not None and info is not None and is_plain_name(name):
-            target = unique_media_target(Path(media_dir), name, info, taken)
+            target = unique_media_target(media_dir, name, info, taken)
             jobs.append((ref, target))
             mapping[ref.original] = target.as_posix()
         else:
-            result.media_missing.append(ref.original)
-    return jobs, mapping
+            missing.append(ref.original)
+    return jobs, mapping, missing
 
 
 def _rewritten_scene(zf: zipfile.ZipFile, name: str, mapping: dict[str, str]) -> str:
@@ -187,6 +190,117 @@ def _check_names(sel: Selection) -> None:
             raise InvalidBackupError(f"unsafe name in backup: {name!r}")
 
 
+@dataclass
+class _Plan:
+    """What a restore will do, worked out and checked before anything changes."""
+
+    targets: dict[str, Path]  # config member -> where it goes
+    scenes: dict[str, str]  # config member -> scene collection with rewritten media paths
+    profile_dirs: list[Path]  # emptied before the profile's files are restored
+    media: list[tuple[MediaRef, Path]]  # media file -> where it goes
+    media_missing: list[str]
+
+
+def _plan(
+    zf: zipfile.ZipFile,
+    manifest: Manifest,
+    config_dir: Path,
+    sel: Selection,
+    media_dir: Path | None,
+) -> _Plan:
+    """Check every path and scene collection the restore will write."""
+    infos = {info.filename: info for info in zf.infolist()}
+    members = members_for(list(infos), sel)
+    media, mapping, media_missing = _plan_media(manifest, sel, media_dir, infos)
+    scenes: dict[str, str] = {}
+    if mapping:
+        scene_members = {f"{CONFIG_PREFIX}{_SCENES}/{f}" for f in sel.scene_collections}
+        scenes = {
+            name: _rewritten_scene(zf, name, mapping) for name in members if name in scene_members
+        }
+    return _Plan(
+        targets={name: _config_target(config_dir, name) for name in members},
+        scenes=scenes,
+        profile_dirs=[
+            safe_target(config_dir / obs_config.PROFILES_DIR, d)
+            for d in sel.profiles
+            if any(m.startswith(f"{CONFIG_PREFIX}{_PROFILES}/{d}/") for m in members)
+        ],
+        media=media,
+        media_missing=media_missing,
+    )
+
+
+def _apply(
+    zf: zipfile.ZipFile, plan: _Plan, config_dir: Path, progress: Progress | None
+) -> RestoreResult:
+    """Unpack everything ``plan`` covers, then move it into place."""
+    total = len(plan.targets) + len(plan.media)
+    created = not config_dir.is_dir()
+    config_dir.mkdir(parents=True, exist_ok=True)
+    # Inside config_dir, so the unpacked files can be moved into place by renaming.
+    staging = Path(tempfile.mkdtemp(prefix=".restore-", dir=config_dir))
+    try:
+        # 1. Unpack everything; a damaged member stops the restore here.
+        moves: list[tuple[Path, Path]] = []  # (unpacked, final place)
+        for n, (name, target) in enumerate(plan.targets.items()):
+            if progress:
+                progress(n, total, name[len(CONFIG_PREFIX) :])
+            unpacked = staging / str(n)
+            if name in plan.scenes:
+                unpacked.write_text(plan.scenes[name], encoding="utf-8")
+            else:
+                _unpack(zf, name, unpacked)
+            moves.append((unpacked, target))
+        for n, (ref, target) in enumerate(plan.media, len(plan.targets)):
+            if progress:
+                progress(n, total, ref.original)
+            if not target.exists():  # otherwise: the same file, restored before
+                _unpack(zf, ref.archive, staging / str(n))
+                moves.append((staging / str(n), target))
+
+        # 2. Replace. Profile folders are emptied first, so files deleted since
+        # the backup don't linger.
+        for folder in plan.profile_dirs:
+            if folder.is_dir():
+                _empty(folder)
+        for unpacked, target in moves:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            _move(unpacked, target)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+        if created and not any(config_dir.iterdir()):
+            config_dir.rmdir()  # nothing restored into a folder made for it
+    if progress:
+        progress(total, total, "")
+    return RestoreResult(
+        files=len(plan.targets),
+        media_restored=len(plan.media),
+        media_missing=plan.media_missing,
+    )
+
+
+def _restore(
+    zip_path: Path,
+    config_dir: Path,
+    sel: Selection,
+    media_dir: Path | None,
+    progress: Progress | None,
+    before_changes: Callable[[], None] | None = None,
+) -> RestoreResult:
+    _check_names(sel)
+    manifest = read_manifest(zip_path)
+    config_dir = Path(config_dir)
+    if media_dir is not None:
+        # Scene collections need absolute paths; OBS resolves relative ones elsewhere.
+        media_dir = Path(media_dir).absolute()
+    with zipfile.ZipFile(zip_path) as zf:
+        plan = _plan(zf, manifest, config_dir, sel, media_dir)
+        if before_changes:
+            before_changes()
+        return _apply(zf, plan, config_dir, progress)
+
+
 def restore_backup(
     zip_path: Path,
     config_dir: Path,
@@ -199,87 +313,17 @@ def restore_backup(
     OBS must not be running: it rewrites its scene collection and profile files
     when it exits and would overwrite the restored files.
 
-    Every selected file is unpacked to a temporary folder inside ``config_dir``
-    (which checks its CRC) before anything is replaced, so a damaged or unsafe
-    backup leaves ``config_dir`` and ``media_dir`` as they were.
+    Every path and scene collection is checked first. Then every selected file is
+    unpacked to a temporary folder inside ``config_dir`` (which checks its CRC)
+    before anything is replaced, so a damaged or unsafe backup leaves
+    ``config_dir`` and ``media_dir`` as they were.
 
     Media: a file a restored scene collection uses is left alone if it still
     exists at its original path. Otherwise, if ``sel.media`` is set and the backup
     holds a copy, the copy goes to ``media_dir`` and the scene collection is
     changed to point there.
     """
-    _check_names(sel)
-    manifest = read_manifest(zip_path)
-    config_dir = Path(config_dir)
-    if media_dir is not None:
-        # Scene collections need absolute paths; OBS resolves relative ones elsewhere.
-        media_dir = Path(media_dir).absolute()
-    result = RestoreResult(files=0)
-
-    with zipfile.ZipFile(zip_path) as zf:
-        infos = {info.filename: info for info in zf.infolist()}
-        members = members_for(list(infos), sel)
-        media_jobs, mapping = _plan_media(manifest, sel, media_dir, infos, result)
-
-        # Check every path and scene collection before the first change.
-        targets = {name: _config_target(config_dir, name) for name in members}
-        scenes: dict[str, str] = {}
-        if mapping:
-            scene_members = {f"{CONFIG_PREFIX}{_SCENES}/{f}" for f in sel.scene_collections}
-            scenes = {
-                name: _rewritten_scene(zf, name, mapping)
-                for name in members
-                if name in scene_members
-            }
-        profile_dirs = [
-            safe_target(config_dir / obs_config.PROFILES_DIR, d)
-            for d in sel.profiles
-            if any(m.startswith(f"{CONFIG_PREFIX}{_PROFILES}/{d}/") for m in members)
-        ]
-
-        total = len(members) + len(media_jobs)
-        created = not config_dir.is_dir()
-        config_dir.mkdir(parents=True, exist_ok=True)
-        # Inside config_dir, so the unpacked files can be moved into place by renaming.
-        staging = Path(tempfile.mkdtemp(prefix=".restore-", dir=config_dir))
-        try:
-            # 1. Unpack everything; a damaged member stops the restore here.
-            config_files: list[tuple[Path, Path]] = []  # (unpacked, final place)
-            media_files: list[tuple[Path, Path]] = []
-            for n, name in enumerate(members):
-                if progress:
-                    progress(n, total, name[len(CONFIG_PREFIX) :])
-                unpacked = staging / str(n)
-                if name in scenes:
-                    unpacked.write_text(scenes[name], encoding="utf-8")
-                else:
-                    _unpack(zf, name, unpacked)
-                config_files.append((unpacked, targets[name]))
-            for n, (ref, target) in enumerate(media_jobs, len(members)):
-                if progress:
-                    progress(n, total, ref.original)
-                if not target.exists():  # otherwise: the same file, restored before
-                    _unpack(zf, ref.archive, staging / str(n))
-                    media_files.append((staging / str(n), target))
-
-            # 2. Replace. Profile folders are emptied first, so files deleted
-            # since the backup don't linger.
-            for target in profile_dirs:
-                if target.is_dir():
-                    _empty(target)
-            for unpacked, target in [*config_files, *media_files]:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                _move(unpacked, target)
-        finally:
-            shutil.rmtree(staging, ignore_errors=True)
-            if created and not any(config_dir.iterdir()):
-                config_dir.rmdir()  # nothing restored into a folder made for it
-        result.files = len(config_files)
-        result.media_restored = len(media_jobs)
-
-    if progress:
-        progress(total, total, "")
-    return result
+    return _restore(zip_path, config_dir, sel, media_dir, progress)
 
 
 def restore_with_safety_backup(
@@ -290,20 +334,28 @@ def restore_with_safety_backup(
     safety_dir: Path | None = None,
     progress: Progress | None = None,
 ) -> RestoreResult:
-    """``restore_backup``, after backing up the current config folder into ``safety_dir``.
+    """``restore_backup``, backing up the current config folder into ``safety_dir`` first.
 
+    The safety backup is made once the backup to restore has passed its checks, so
+    an unsafe or broken backup doesn't leave a needless safety backup behind.
     Without ``safety_dir`` no safety backup is made. If the restore fails after the
     safety backup was written, the error is a ``RestoreFailedError`` naming it.
     """
     config_dir = Path(config_dir)
-    safety_path = None
-    if safety_dir is not None and config_dir.is_dir():
+    safety_path: Path | None = None
+
+    def back_up_current_state() -> None:
+        nonlocal safety_path
+        if safety_dir is None or not config_dir.is_dir():
+            return
         full = safety_selection(config_dir, sel)
         if not full.is_empty():
-            safety_path = Path(safety_dir) / default_backup_name("_before-restore")
-            create_backup(config_dir, safety_path, full, progress)
+            path = Path(safety_dir) / default_backup_name("_before-restore")
+            create_backup(config_dir, path, full, progress)
+            safety_path = path  # only once it exists
+
     try:
-        result = restore_backup(zip_path, config_dir, sel, media_dir, progress)
+        result = _restore(zip_path, config_dir, sel, media_dir, progress, back_up_current_state)
     except Exception as e:
         if safety_path is None:
             raise

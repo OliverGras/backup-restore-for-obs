@@ -118,17 +118,19 @@ def config_dir_for_process(
 
 def find_running_obs() -> list[RunningObs]:
     found: list[RunningObs] = []
-    for proc in psutil.process_iter(["pid", "name", "exe", "cmdline"]):
+    for proc in psutil.process_iter(["name"]):
         try:
-            name = (proc.info.get("name") or "").lower()
-            if name not in PROCESS_NAMES:
+            if (proc.info.get("name") or "").lower() not in PROCESS_NAMES:
                 continue
-            exe = proc.info.get("exe")
+            # Only for OBS: reading these for every process is slow, and this runs
+            # every few seconds. None where access is denied.
+            info = proc.as_dict(["exe", "cmdline"], ad_value=None)
+            exe = info["exe"]
             found.append(
                 RunningObs(
-                    pid=proc.info["pid"],
+                    pid=proc.pid,
                     executable=Path(exe) if exe else None,
-                    cmdline=list(proc.info.get("cmdline") or []),
+                    cmdline=list(info["cmdline"] or []),
                 )
             )
         except psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess:

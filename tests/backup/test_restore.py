@@ -383,7 +383,9 @@ def test_safety_selection_leaves_out_browser_data_not_restored(obs: Path) -> Non
 
 
 def test_failed_restore_names_the_safety_backup(obs: Path, tmp_path: Path) -> None:
-    zip_path = craft_backup(tmp_path / "bad.zip", {}, {"config/plugin_manager/../../x": "x"})
+    zip_path = tmp_path / "b.zip"
+    backup.create_backup(obs, zip_path, Selection(global_settings=True))
+    corrupt_member(zip_path, "config/global.ini")  # found while unpacking, after the checks
     with pytest.raises(backup.RestoreFailedError) as info:
         backup.restore_with_safety_backup(
             zip_path, obs, Selection(global_settings=True), safety_dir=tmp_path / "safety"
@@ -391,6 +393,26 @@ def test_failed_restore_names_the_safety_backup(obs: Path, tmp_path: Path) -> No
     safety = info.value.safety_backup
     assert str(safety) in str(info.value)
     assert "config/global.ini" in zipfile.ZipFile(safety).namelist()
+
+
+def test_unsafe_backup_makes_no_safety_backup(obs: Path, tmp_path: Path) -> None:
+    zip_path = craft_backup(tmp_path / "bad.zip", {}, {"config/plugin_manager/../../x": "x"})
+    with pytest.raises(backup.InvalidBackupError) as info:
+        backup.restore_with_safety_backup(
+            zip_path, obs, Selection(global_settings=True), safety_dir=tmp_path / "safety"
+        )
+    assert not isinstance(info.value, backup.RestoreFailedError)
+    assert not (tmp_path / "safety").exists()
+
+
+def test_failed_safety_backup_is_not_named(obs: Path, tmp_path: Path) -> None:
+    dest = tmp_path / "b.zip"
+    backup.create_backup(obs, dest, Selection(global_settings=True))
+    not_a_folder = write(tmp_path / "file")
+    with pytest.raises(OSError):  # not a RestoreFailedError naming a file that isn't there
+        backup.restore_with_safety_backup(
+            dest, obs, Selection(global_settings=True), safety_dir=not_a_folder
+        )
 
 
 def test_no_safety_backup_without_folder(obs: Path, tmp_path: Path) -> None:

@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from obs_backup.obs import locator
 
 
@@ -47,6 +49,31 @@ def test_linux_sandboxes() -> None:
         Path("/snap/obs-studio/1234/usr/bin/obs"), ["obs"], "linux", {}, home
     )
     assert kind == "snap" and cfg == home / "snap/obs-studio/current/.config/obs-studio"
+
+
+class _FakeProcess:
+    def __init__(self, pid: int, name: str, exe: str | None) -> None:
+        self.pid, self.info, self._exe = pid, {"name": name}, exe
+        self.details_read = False
+
+    def as_dict(self, attrs: list[str], ad_value: object) -> dict[str, object]:
+        self.details_read = True
+        return {"exe": self._exe, "cmdline": [self._exe] if self._exe else ad_value}
+
+
+def test_running_obs_reads_details_only_for_obs(monkeypatch: pytest.MonkeyPatch) -> None:
+    obs = _FakeProcess(1, "obs64.exe", "C:/OBS/bin/64bit/obs64.exe")
+    denied = _FakeProcess(2, "OBS", None)  # another user's OBS: access denied
+    other = _FakeProcess(3, "explorer.exe", "C:/Windows/explorer.exe")
+    monkeypatch.setattr(locator.psutil, "process_iter", lambda attrs: [obs, denied, other])
+
+    found = locator.find_running_obs()
+    assert [(p.pid, p.executable) for p in found] == [
+        (1, Path("C:/OBS/bin/64bit/obs64.exe")),
+        (2, None),
+    ]
+    assert found[1].cmdline == []
+    assert not other.details_read
 
 
 def test_discover_always_returns_something() -> None:
