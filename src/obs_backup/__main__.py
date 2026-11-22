@@ -1,4 +1,4 @@
-"""Entry point: ``python -m obs_backup`` or the ``obs-backup`` command."""
+"""Entry point: ``python -m obs_backup`` or the ``obs-backup-restore`` command."""
 
 import sys
 

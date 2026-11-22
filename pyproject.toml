@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "obs-backup"
+name = "obs-backup-restore"
 version = "0.1.0"
 description = "Back up and restore OBS Studio profiles, scene collections, sources and settings."
 readme = "README.md"
@@ -23,6 +23,10 @@ classifiers = [
     "Topic :: System :: Archiving :: Backup",
 ]
 
+[project.urls]
+Homepage = "https://github.com/OliverGras/obs_backup_restore"
+Issues = "https://github.com/OliverGras/obs_backup_restore/issues"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
@@ -30,7 +34,7 @@ dev = [
 ]
 
 [project.gui-scripts]
-obs-backup = "obs_backup.__main__:main"
+obs-backup-restore = "obs_backup.__main__:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/obs_backup"]

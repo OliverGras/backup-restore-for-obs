@@ -23,11 +23,11 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            asset: OBS-Backup-windows.exe
+            asset: OBS-Backup-Restore-windows.exe
           - os: macos-latest
-            asset: OBS-Backup-macos.zip
+            asset: OBS-Backup-Restore-macos.zip
           - os: ubuntu-22.04
-            asset: OBS-Backup-linux.tar.gz
+            asset: OBS-Backup-Restore-linux.tar.gz
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -40,16 +40,16 @@ jobs:
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
-        run: move dist\OBS-Backup.exe ${{ matrix.asset }}
+        run: move dist\OBS-Backup-Restore.exe ${{ matrix.asset }}
         shell: cmd
 
       - name: Package (macOS)
         if: runner.os == 'macOS'
-        run: ditto -c -k --keepParent "dist/OBS Backup.app" ${{ matrix.asset }}
+        run: ditto -c -k --keepParent "dist/OBS Backup & Restore.app" ${{ matrix.asset }}
 
       - name: Package (Linux)
         if: runner.os == 'Linux'
-        run: tar -czf ${{ matrix.asset }} -C dist OBS-Backup
+        run: tar -czf ${{ matrix.asset }} -C dist OBS-Backup-Restore
 
       - uses: actions/upload-artifact@v4
         with:

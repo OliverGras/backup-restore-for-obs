@@ -44,8 +44,9 @@ from obs_backup.legal import license_documents
 from obs_backup.i18n import LANGUAGES, current_language, format_size, set_language, system_language, tr
 from obs_backup.locator import ObsInstallation, discover, running_obs_for
 
-ORG = "OBS Backup"
-APP = "OBS Backup"
+ORG = "OBS Backup & Restore"
+APP = "OBS Backup & Restore"
+HOMEPAGE = "https://github.com/OliverGras/obs_backup_restore"
 ROLE_KIND = Qt.ItemDataRole.UserRole
 ROLE_KEY = Qt.ItemDataRole.UserRole + 1
 OK_COLOR = "#2e9d4f"
@@ -338,7 +339,7 @@ class MainWindow(QMainWindow):
             lang_menu.addAction(act)
 
         help_menu = mb.addMenu(tr("menu_help"))
-        help_menu.addAction(tr("menu_about"), self.show_about)
+        help_menu.addAction(tr("menu_about").replace("&", "&&"), self.show_about)  # "&" is a mnemonic in menus
 
     def _build_backup_tab(self) -> QWidget:
         w = QWidget()
@@ -746,7 +747,7 @@ class MainWindow(QMainWindow):
 
     def show_about(self) -> None:
         box = QMessageBox(QMessageBox.Icon.Information, tr("menu_about"),
-                          tr("about_text", version=__version__),
+                          tr("about_text", version=__version__, homepage=HOMEPAGE),
                           QMessageBox.StandardButton.NoButton, self)
         box.setTextFormat(Qt.TextFormat.RichText)
         box.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)

@@ -2,7 +2,8 @@
 
     python packaging/build.py
 
-Output: dist/OBS-Backup.exe (Windows), dist/OBS Backup.app (macOS), dist/OBS-Backup (Linux).
+Output: dist/OBS-Backup-Restore.exe (Windows), dist/OBS Backup & Restore.app (macOS),
+dist/OBS-Backup-Restore (Linux).
 Used locally and by .github/workflows/release.yml.
 """
 
@@ -15,6 +16,9 @@ from pathlib import Path
 import PyInstaller.__main__
 
 ROOT = Path(__file__).resolve().parents[1]
+# Must match the project name registered with SignPath (signed files' product name).
+PRODUCT_NAME = "OBS Backup & Restore"
+FILE_NAME = "OBS-Backup-Restore"
 BUILD = ROOT / "build"
 
 # Qt modules the app doesn't use; leaving them out keeps the app small.
@@ -38,12 +42,12 @@ def write_windows_version_info(version: str) -> Path:
   kids=[
     StringFileInfo([StringTable('040904B0', [
       StringStruct('CompanyName', 'Oliver Gras'),
-      StringStruct('FileDescription', 'OBS Backup'),
+      StringStruct('FileDescription', '{PRODUCT_NAME}'),
       StringStruct('FileVersion', '{version}'),
-      StringStruct('InternalName', 'OBS-Backup'),
+      StringStruct('InternalName', '{FILE_NAME}'),
       StringStruct('LegalCopyright', 'Copyright (c) 2026 Oliver Gras. MIT License.'),
-      StringStruct('OriginalFilename', 'OBS-Backup.exe'),
-      StringStruct('ProductName', 'OBS Backup'),
+      StringStruct('OriginalFilename', '{FILE_NAME}.exe'),
+      StringStruct('ProductName', '{PRODUCT_NAME}'),
       StringStruct('ProductVersion', '{version}')])]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]
@@ -62,7 +66,7 @@ def main() -> None:
         str(src / "obs_backup" / "__main__.py"),
         "--noconfirm",
         "--windowed",
-        "--name", "OBS Backup" if sys.platform == "darwin" else "OBS-Backup",
+        "--name", PRODUCT_NAME if sys.platform == "darwin" else FILE_NAME,
         "--paths", str(src),
         "--add-data", f"{src / 'obs_backup' / 'licenses'}:{licenses}",
         "--add-data", f"{ROOT / 'LICENSE'}:{licenses}",
@@ -74,7 +78,7 @@ def main() -> None:
     for module in EXCLUDED_MODULES:
         args += ["--exclude-module", module]
     if sys.platform == "darwin":
-        args += ["--osx-bundle-identifier", "io.github.obs-backup"]
+        args += ["--osx-bundle-identifier", "io.github.olivergras.obs-backup-restore"]
     else:
         args.append("--onefile")
     if sys.platform == "win32":

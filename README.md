@@ -1,4 +1,4 @@
-# OBS Backup
+# OBS Backup & Restore
 
 A simple tool with a graphical interface to **back up and restore [OBS Studio](https://obsproject.com/)**: profiles, scene collections (scenes and sources), settings, plugin settings and, optionally, the media files your scenes use.
 
@@ -20,20 +20,20 @@ Works on **Windows, macOS and Linux**. The interface is in **English** and **Ger
 Get the latest version from the [Releases](../../releases) page. No installation is needed.
 
 | System  | File                       |
-|---------|----------------------------|
-| Windows | `OBS-Backup-windows.exe`   |
-| macOS   | `OBS-Backup-macos.zip`     |
-| Linux   | `OBS-Backup-linux.tar.gz`  |
+|---------|------------------------------------|
+| Windows | `OBS-Backup-Restore-windows.exe`   |
+| macOS   | `OBS-Backup-Restore-macos.zip`     |
+| Linux   | `OBS-Backup-Restore-linux.tar.gz`  |
 
 Each release also has a `SHA256SUMS.txt` for checking the downloads.
 
 The Windows app is code-signed through the [SignPath Foundation](https://signpath.org/); see the [code signing policy](#code-signing-policy). The macOS app is not signed: right-click it → “Open” the first time.
 
-To uninstall, delete the app. Its settings are stored in the registry under `HKEY_CURRENT_USER\Software\OBS Backup` (Windows), in a `.plist` file named after OBS Backup in `~/Library/Preferences/` (macOS) or in `~/.config/OBS Backup/` (Linux). Your backups stay where you saved them.
+To uninstall, delete the app. Its settings are stored in the registry under `HKEY_CURRENT_USER\Software\OBS Backup & Restore` (Windows), in a `.plist` file named after OBS Backup & Restore in `~/Library/Preferences/` (macOS) or in `~/.config/OBS Backup & Restore/` (Linux). Your backups stay where you saved them.
 
 ## Usage
 
-1. Start OBS Backup. It shows the OBS config folder it found and whether OBS is running.
+1. Start OBS Backup & Restore. It shows the OBS config folder it found and whether OBS is running.
 2. **Back up** tab: tick what you want, optionally include media files, and click **Create backup**. Backups go to `Documents/OBS Backups` by default.
 3. **Restore** tab: close OBS, pick a backup, tick what you want to restore and click **Restore**. Then start OBS.
 
@@ -75,7 +75,7 @@ obs-backup_2026-11-22_09-36-10.zip
 
 ## Privacy
 
-OBS Backup does not send any information to other networked systems unless the user specifically requests it. It works only with files on your computer. It has no telemetry, no update check and no accounts.
+OBS Backup & Restore does not send any information to other networked systems unless the user specifically requests it. It works only with files on your computer. It has no telemetry, no update check and no accounts.
 
 ## Code signing policy
 
@@ -85,8 +85,8 @@ Only files built automatically by GitHub Actions from the source code in this re
 
 | Role | Members |
 |------|---------|
-| Committers and reviewers | [Oliver Gras](../../graphs/contributors) |
-| Approvers | Oliver Gras |
+| Committers and reviewers | [Oliver Gras](https://github.com/OliverGras) |
+| Approvers | [Oliver Gras](https://github.com/OliverGras) |
 
 Changes from people outside the team, for example pull requests, are reviewed by a committer before they are merged.
 
@@ -95,8 +95,8 @@ Changes from people outside the team, for example pull requests, are reviewed by
 Requires Python 3.10 or newer.
 
 ```bash
-git clone <this repo>
-cd obs_backup
+git clone https://github.com/OliverGras/obs_backup_restore.git
+cd obs_backup_restore
 python -m venv .venv
 # Windows: .venv\Scripts\activate    macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]"
@@ -133,8 +133,8 @@ Issues and pull requests are welcome. **To add a language**, copy the `"en"` blo
 
 ## License
 
-OBS Backup is licensed under the [MIT License](LICENSE).
+OBS Backup & Restore is licensed under the [MIT License](LICENSE).
 
-The ready-to-run apps also contain third-party components under their own licenses. Most notably, they use [Qt](https://www.qt.io/) and [PySide6](https://wiki.qt.io/Qt_for_Python) under the GNU LGPL v3. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the full list, the source code links and the license texts. They can also be read in the app under Help → About OBS Backup → Licenses.
+The ready-to-run apps also contain third-party components under their own licenses. Most notably, they use [Qt](https://www.qt.io/) and [PySide6](https://wiki.qt.io/Qt_for_Python) under the GNU LGPL v3. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the full list, the source code links and the license texts. They can also be read in the app under Help → About OBS Backup & Restore → Licenses.
 
-OBS Backup is an independent project. It is not affiliated with or endorsed by the OBS Project. “OBS” and “OBS Studio” are trademarks of the OBS Project.
+OBS Backup & Restore is an independent project. It is not affiliated with or endorsed by the OBS Project. “OBS” and “OBS Studio” are trademarks of the OBS Project.

@@ -103,11 +103,11 @@ class Manifest:
         except ValueError as e:
             raise InvalidBackupError(f"manifest.json is not valid JSON: {e}") from e
         if not isinstance(data, dict) or data.get("format") != FORMAT:
-            raise InvalidBackupError("not an OBS Backup archive")
+            raise InvalidBackupError("not an OBS Backup & Restore archive")
         if int(data.get("format_version", 0)) > FORMAT_VERSION:
             raise InvalidBackupError(
                 f"backup format {data.get('format_version')} is newer than this tool supports "
-                f"({FORMAT_VERSION}); please update OBS Backup")
+                f"({FORMAT_VERSION}); please update OBS Backup & Restore")
         try:
             return cls(
                 created=data.get("created", ""),
@@ -317,7 +317,7 @@ def read_manifest(path: Path) -> Manifest:
             try:
                 text = zf.read(MANIFEST).decode("utf-8")
             except KeyError as e:
-                raise InvalidBackupError("manifest.json missing – not an OBS Backup archive") from e
+                raise InvalidBackupError("manifest.json missing – not an OBS Backup & Restore archive") from e
     except zipfile.BadZipFile as e:
         raise InvalidBackupError(f"not a valid zip file: {e}") from e
     return Manifest.from_json(text)
