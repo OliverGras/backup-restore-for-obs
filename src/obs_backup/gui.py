@@ -44,9 +44,9 @@ from obs_backup.legal import license_documents
 from obs_backup.i18n import LANGUAGES, current_language, format_size, set_language, system_language, tr
 from obs_backup.locator import ObsInstallation, discover, running_obs_for
 
-ORG = "OBS Backup & Restore"
-APP = "OBS Backup & Restore"
-HOMEPAGE = "https://github.com/OliverGras/obs_backup_restore"
+ORG = "Backup & Restore for OBS"
+APP = "Backup & Restore for OBS"
+HOMEPAGE = "https://github.com/OliverGras/backup-restore-for-obs"
 ROLE_KIND = Qt.ItemDataRole.UserRole
 ROLE_KEY = Qt.ItemDataRole.UserRole + 1
 OK_COLOR = "#2e9d4f"

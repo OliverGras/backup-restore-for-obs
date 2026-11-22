@@ -1,11 +1,11 @@
 # Third-party notices
 
-OBS Backup & Restore's own source code is licensed under the [MIT License](LICENSE).
+Backup & Restore for OBS's own source code is licensed under the [MIT License](LICENSE).
 
-The ready-to-run apps (for example `OBS-Backup-Restore-windows.exe`) also contain the
+The ready-to-run apps (for example `Backup-Restore-for-OBS-windows.exe`) also contain the
 components listed below, each under its own license. Their full license texts
 are in [`src/obs_backup/licenses/`](src/obs_backup/licenses/). They are built
-into the app as well: **Help → About OBS Backup & Restore → Licenses**.
+into the app as well: **Help → About Backup & Restore for OBS → Licenses**.
 
 | Component | Used for | License | License text |
 |-----------|----------|---------|--------------|
@@ -27,14 +27,14 @@ Neither has been modified.
 - Third-party code inside Qt (for example FreeType, HarfBuzz, libpng, libjpeg, PCRE2, zlib):
   <https://doc.qt.io/qt-6/licenses-used-in-qt.html>
 
-The LGPL lets you use a modified version of these libraries with OBS Backup & Restore.
+The LGPL lets you use a modified version of these libraries with Backup & Restore for OBS.
 Because the app's complete source code is in this repository, you can do that
 by installing your own Qt / PySide6 build and running or rebuilding the app as
 described in the [README](README.md#run-from-source).
 
 ## OBS Studio
 
-OBS Backup & Restore is an independent project and contains no code from OBS Studio. It is
+Backup & Restore for OBS is an independent project and contains no code from OBS Studio. It is
 not affiliated with or endorsed by the OBS Project. “OBS” and “OBS Studio” are
 trademarks of the OBS Project, used here only to say which software this tool
 works with.

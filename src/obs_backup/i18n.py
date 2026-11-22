@@ -12,19 +12,21 @@ LANGUAGES = {"en": "English", "de": "Deutsch"}
 
 STRINGS: dict[str, dict[str, str]] = {
     "en": {
-        "app_title": "OBS Backup & Restore",
+        "app_title": "Backup & Restore for OBS",
         "menu_file": "&File",
         "menu_open_backup_dir": "Open backup folder",
         "menu_open_config_dir": "Open OBS config folder",
         "menu_quit": "&Quit",
         "menu_language": "&Language",
         "menu_help": "&Help",
-        "menu_about": "About OBS Backup & Restore",
-        "about_text": "<b>OBS Backup &amp; Restore {version}</b><br>Back up and restore OBS Studio profiles, "
+        "menu_about": "About Backup & Restore for OBS",
+        "about_text": "<b>Backup &amp; Restore for OBS {version}</b><br>Back up and restore OBS Studio profiles, "
                       "scene collections, sources and settings.<br><br>"
                       "Open source under the MIT license. Uses Qt and PySide6 under the GNU LGPL v3; "
                       "see “Licenses”.<br><br>"
                       "This program does not send any data over the network.<br><br>"
+                      "Most of the code was written with an AI coding assistant (Claude Code by "
+                      "Anthropic) and is reviewed by the maintainer.<br><br>"
                       "Not affiliated with the OBS Project.<br><br>"
                       "<a href=\"{homepage}\">{homepage}</a>",
         "btn_licenses": "Licenses",
@@ -113,19 +115,21 @@ STRINGS: dict[str, dict[str, str]] = {
         "language_changed": "Language changed.",
     },
     "de": {
-        "app_title": "OBS Backup & Restore",
+        "app_title": "Backup & Restore for OBS",
         "menu_file": "&Datei",
         "menu_open_backup_dir": "Backup-Ordner öffnen",
         "menu_open_config_dir": "OBS-Konfigurationsordner öffnen",
         "menu_quit": "&Beenden",
         "menu_language": "&Sprache",
         "menu_help": "&Hilfe",
-        "menu_about": "Über OBS Backup & Restore",
-        "about_text": "<b>OBS Backup &amp; Restore {version}</b><br>Sichern und Wiederherstellen von OBS-Studio-Profilen, "
+        "menu_about": "Über Backup & Restore for OBS",
+        "about_text": "<b>Backup &amp; Restore for OBS {version}</b><br>Sichern und Wiederherstellen von OBS-Studio-Profilen, "
                       "Szenensammlungen, Quellen und Einstellungen.<br><br>"
                       "Open Source unter der MIT-Lizenz. Verwendet Qt und PySide6 unter der GNU LGPL v3; "
                       "siehe „Lizenzen“.<br><br>"
                       "Dieses Programm sendet keine Daten über das Netzwerk.<br><br>"
+                      "Der Großteil des Codes wurde mit einem KI-Programmierassistenten (Claude Code "
+                      "von Anthropic) geschrieben und wird vom Maintainer geprüft.<br><br>"
                       "Kein offizielles Produkt des OBS-Projekts.<br><br>"
                       "<a href=\"{homepage}\">{homepage}</a>",
         "btn_licenses": "Lizenzen",

@@ -2,8 +2,8 @@
 
     python packaging/build.py
 
-Output: dist/OBS-Backup-Restore.exe (Windows), dist/OBS Backup & Restore.app (macOS),
-dist/OBS-Backup-Restore (Linux).
+Output: dist/Backup-Restore-for-OBS.exe (Windows), dist/Backup & Restore for OBS.app (macOS),
+dist/Backup-Restore-for-OBS (Linux).
 Used locally and by .github/workflows/release.yml.
 """
 
@@ -18,8 +18,8 @@ import PyInstaller.__main__
 ROOT = Path(__file__).resolve().parents[1]
 # Shown in the Windows file properties. A code signing service will later require
 # this to match the registered project name.
-PRODUCT_NAME = "OBS Backup & Restore"
-FILE_NAME = "OBS-Backup-Restore"
+PRODUCT_NAME = "Backup & Restore for OBS"
+FILE_NAME = "Backup-Restore-for-OBS"
 BUILD = ROOT / "build"
 
 # Qt modules the app doesn't use; leaving them out keeps the app small.
@@ -79,7 +79,7 @@ def main() -> None:
     for module in EXCLUDED_MODULES:
         args += ["--exclude-module", module]
     if sys.platform == "darwin":
-        args += ["--osx-bundle-identifier", "io.github.olivergras.obs-backup-restore"]
+        args += ["--osx-bundle-identifier", "io.github.olivergras.backup-restore-for-obs"]
     else:
         args.append("--onefile")
     if sys.platform == "win32":
