@@ -4,6 +4,8 @@ A simple tool with a graphical interface to **back up and restore [OBS Studio](h
 
 Works on **Windows, macOS and Linux**. The interface is in **English** and **German**.
 
+![OBS Backup & Restore on Windows: the Back up tab with the detected OBS installation, profiles, scene collections and settings to choose from](docs/screenshot.png)
+
 ## Features
 
 - **Finds OBS automatically.** It detects a running OBS and uses the config folder that OBS uses, including **portable installs**, **Flatpak** and **Snap**. You can also pick any folder by hand.
