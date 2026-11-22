@@ -95,7 +95,7 @@ def scan_media(config_dir: Path, scene_files: list[str]) -> list[MediaRef]:
 
 
 def full_selection(config_dir: Path) -> Selection:
-    """Everything worth keeping, as used for the safety backup before a restore."""
+    """Everything worth keeping, except browser data (large, and rarely restored)."""
     return Selection(
         profiles=[p.dir_name for p in obs_config.list_profiles(config_dir)],
         scene_collections=[s.file_name for s in obs_config.list_scene_collections(config_dir)],
@@ -103,3 +103,13 @@ def full_selection(config_dir: Path) -> Selection:
         plugin_config=obs_config.has_plugin_config(config_dir),
         plugins=obs_config.has_plugins(config_dir),
     )
+
+
+def safety_selection(config_dir: Path, restoring: Selection) -> Selection:
+    """What to back up before restoring ``restoring``: everything a restore can overwrite.
+
+    Browser data (cookies, logins) is included only when it is about to be replaced.
+    """
+    sel = full_selection(config_dir)
+    sel.browser_data = restoring.browser_data and obs_config.has_browser_data(config_dir)
+    return sel

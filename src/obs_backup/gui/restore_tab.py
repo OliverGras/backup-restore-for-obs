@@ -136,7 +136,6 @@ class RestoreTab(QWidget):
             self._info.setText(tr("invalid_backup", error=e))
             self.update_enabled()
             return
-        self._manifest = m
         self._info.setText(
             tr(
                 "backup_info",
@@ -146,9 +145,10 @@ class RestoreTab(QWidget):
                 media=len(m.media),
             )
         )
+        # read_manifest has checked the entries: each has its name and its folder or file.
         self._tree.populate(
-            profiles=[(p.get("name", p["dir"]), p["dir"]) for p in m.profiles],
-            scenes=[(s.get("name", s["file"]), s["file"]) for s in m.scene_collections],
+            profiles=[(p["name"], p["dir"]) for p in m.profiles],
+            scenes=[(s["name"], s["file"]) for s in m.scene_collections],
             global_settings=m.global_settings,
             plugin_config=m.plugin_config,
             plugins=m.plugins,
@@ -158,6 +158,7 @@ class RestoreTab(QWidget):
         has_media = bool(m.media)
         self._media_check.setEnabled(has_media)
         self._media_dir.setEnabled(has_media)
+        self._manifest = m
         self.update_enabled()
 
     def update_enabled(self) -> None:
@@ -191,20 +192,13 @@ class RestoreTab(QWidget):
 
         sel.media = self._media_check.isChecked() and bool(self._manifest.media)
         media_dir = self._media_dir.path() if sel.media else None
-        safety = self._safety_check.isChecked()
-        backup_dir = self._settings.backup_dir
+        safety_dir = self._settings.backup_dir if self._safety_check.isChecked() else None
         zip_path = Path(path)
 
         def task(progress: Progress) -> RestoreResult:
-            safety_path = None
-            if safety and cfg.is_dir():
-                full = backup.full_selection(cfg)
-                if not full.is_empty():
-                    safety_path = backup_dir / backup.default_backup_name("_before-restore")
-                    backup.create_backup(cfg, safety_path, full, progress)
-            result = backup.restore_backup(zip_path, cfg, sel, media_dir, progress)
-            result.safety_backup = safety_path
-            return result
+            return backup.restore_with_safety_backup(
+                zip_path, cfg, sel, media_dir, safety_dir, progress
+            )
 
         self._tasks.run(tr("restore_running"), task, self._on_restore_done)
 
