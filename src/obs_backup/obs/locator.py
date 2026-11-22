@@ -19,6 +19,7 @@ import os
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 import psutil
@@ -41,10 +42,20 @@ class RunningObs:
     cmdline: list[str] = field(default_factory=list)
 
 
+class InstallKind(StrEnum):
+    """How an OBS installation keeps its config folder (also the kind_* UI text keys)."""
+
+    STANDARD = "standard"
+    PORTABLE = "portable"
+    FLATPAK = "flatpak"
+    SNAP = "snap"
+    CUSTOM = "custom"  # chosen by the user
+
+
 @dataclass
 class ObsInstallation:
     config_dir: Path
-    kind: str  # "standard", "portable", "flatpak", "snap", "custom"
+    kind: InstallKind
     executable: Path | None = None
     running: bool = False
 
@@ -101,19 +112,19 @@ def config_dir_for_process(
     platform: str | None = None,
     env: Mapping[str, str] | None = None,
     home: Path | None = None,
-) -> tuple[Path, str]:
+) -> tuple[Path, InstallKind]:
     """Work out which configuration folder a running OBS process uses."""
     platform = platform or sys.platform
     if executable is not None:
         exe = executable.as_posix()
         if platform.startswith("linux"):
             if exe.startswith("/app/"):
-                return flatpak_config_dir(home), "flatpak"
+                return flatpak_config_dir(home), InstallKind.FLATPAK
             if exe.startswith("/snap/"):
-                return snap_config_dir(home), "snap"
+                return snap_config_dir(home), InstallKind.SNAP
     if executable is not None and is_portable(executable, cmdline):
-        return install_root(executable) / "config" / "obs-studio", "portable"
-    return default_config_dir(platform, env, home), "standard"
+        return install_root(executable) / "config" / "obs-studio", InstallKind.PORTABLE
+    return default_config_dir(platform, env, home), InstallKind.STANDARD
 
 
 def find_running_obs() -> list[RunningObs]:
@@ -138,7 +149,8 @@ def find_running_obs() -> list[RunningObs]:
     return found
 
 
-def _same(a: Path, b: Path) -> bool:
+def same_path(a: Path, b: Path) -> bool:
+    """Whether two paths name the same folder (case-insensitive on Windows)."""
     try:
         return os.path.normcase(a.resolve()) == os.path.normcase(b.resolve())
     except OSError:
@@ -151,7 +163,7 @@ def discover() -> list[ObsInstallation]:
 
     def add(inst: ObsInstallation) -> None:
         for existing in result:
-            if _same(existing.config_dir, inst.config_dir):
+            if same_path(existing.config_dir, inst.config_dir):
                 existing.running = existing.running or inst.running
                 existing.executable = existing.executable or inst.executable
                 return
@@ -161,9 +173,12 @@ def discover() -> list[ObsInstallation]:
         cfg, kind = config_dir_for_process(proc.executable, proc.cmdline)
         add(ObsInstallation(cfg, kind, proc.executable, running=True))
 
-    candidates = [(default_config_dir(), "standard")]
+    candidates = [(default_config_dir(), InstallKind.STANDARD)]
     if sys.platform.startswith("linux"):
-        candidates += [(flatpak_config_dir(), "flatpak"), (snap_config_dir(), "snap")]
+        candidates += [
+            (flatpak_config_dir(), InstallKind.FLATPAK),
+            (snap_config_dir(), InstallKind.SNAP),
+        ]
     for cfg, kind in candidates:
         if cfg.is_dir():
             add(ObsInstallation(cfg, kind))
@@ -171,7 +186,7 @@ def discover() -> list[ObsInstallation]:
     if not result:
         # Nothing found: still offer the default location so a backup can be restored
         # onto a machine where OBS has never been started.
-        result.append(ObsInstallation(default_config_dir(), "standard"))
+        result.append(ObsInstallation(default_config_dir(), InstallKind.STANDARD))
     return result
 
 
@@ -185,6 +200,6 @@ def running_obs_for(config_dir: Path) -> RunningObs | None:
         if proc.executable is None:
             return proc
         cfg, _ = config_dir_for_process(proc.executable, proc.cmdline)
-        if _same(cfg, config_dir):
+        if same_path(cfg, config_dir):
             return proc
     return None

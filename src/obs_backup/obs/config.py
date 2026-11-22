@@ -144,6 +144,12 @@ def list_scene_collections(config_dir: Path) -> list[SceneCollection]:
     ]
 
 
+def has_global_settings(config_dir: Path) -> bool:
+    return any((config_dir / f).is_file() for f in GLOBAL_FILES) or any(
+        (config_dir / d).is_dir() for d in GLOBAL_DIRS
+    )
+
+
 def has_plugin_config(config_dir: Path) -> bool:
     root = config_dir / PLUGIN_CONFIG_DIR
     return root.is_dir() and any(p.name != BROWSER_DIR.name for p in root.iterdir())

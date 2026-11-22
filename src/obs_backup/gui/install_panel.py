@@ -1,5 +1,6 @@
 """Top panel: which OBS config folder to use, and whether OBS is running."""
 
+import html
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -21,7 +22,13 @@ from obs_backup.gui.settings import AppSettings
 from obs_backup.gui.tasks import TaskRunner
 from obs_backup.i18n import tr
 from obs_backup.obs import config as obs_config
-from obs_backup.obs.locator import ObsInstallation, discover, running_obs_for
+from obs_backup.obs.locator import (
+    InstallKind,
+    ObsInstallation,
+    discover,
+    running_obs_for,
+    same_path,
+)
 
 
 class InstallPanel(QGroupBox):
@@ -83,11 +90,11 @@ class InstallPanel(QGroupBox):
         self._installs = discover()
         custom = self._settings.custom_config_dir
         if custom and custom.is_dir() and not self._known(custom):
-            self._installs.append(ObsInstallation(custom, "custom"))
+            self._installs.append(ObsInstallation(custom, InstallKind.CUSTOM))
         self._fill(previous)
 
     def _known(self, path: Path) -> bool:
-        return any(str(i.config_dir) == str(path) for i in self._installs)
+        return any(same_path(i.config_dir, path) for i in self._installs)
 
     def _fill(self, select: Path | None) -> None:
         self._combo.blockSignals(True)
@@ -100,7 +107,7 @@ class InstallPanel(QGroupBox):
             if not inst.exists:
                 extras.append(tr("not_found_suffix"))
             self._combo.addItem(f"{inst.config_dir}   ({', '.join(extras)})")
-            if select and str(inst.config_dir) == str(select):
+            if select and same_path(inst.config_dir, select):
                 index = n
         self._combo.setCurrentIndex(index)
         self._combo.blockSignals(False)
@@ -120,7 +127,7 @@ class InstallPanel(QGroupBox):
             return
         self._settings.custom_config_dir = path
         if not self._known(path):
-            self._installs.append(ObsInstallation(path, "custom"))
+            self._installs.append(ObsInstallation(path, InstallKind.CUSTOM))
         self._fill(path)
 
     def _on_index_changed(self, *_: object) -> None:
@@ -139,13 +146,14 @@ class InstallPanel(QGroupBox):
         parts = []
         if proc is not None:
             exe = str(proc.executable) if proc.executable else f"PID {proc.pid}"
-            text = tr("status_running", exe=exe)
+            # The status is rich text: a path may hold "&" or "<".
+            text = tr("status_running", exe=html.escape(exe))
             parts.append(f'<span style="color:{BAD_COLOR}">{text}</span>')
         else:
             parts.append(f'<span style="color:{OK_COLOR}">{tr("status_not_running")}</span>')
         version = obs_config.obs_version(cfg)
         if version:
-            parts.append(tr("status_version", version=version))
+            parts.append(tr("status_version", version=html.escape(version)))
         self._status.setText(" &nbsp; · &nbsp; ".join(parts))
 
         running = proc is not None

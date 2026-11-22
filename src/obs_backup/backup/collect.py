@@ -99,7 +99,7 @@ def full_selection(config_dir: Path) -> Selection:
     return Selection(
         profiles=[p.dir_name for p in obs_config.list_profiles(config_dir)],
         scene_collections=[s.file_name for s in obs_config.list_scene_collections(config_dir)],
-        global_settings=True,
+        global_settings=obs_config.has_global_settings(config_dir),
         plugin_config=obs_config.has_plugin_config(config_dir),
         plugins=obs_config.has_plugins(config_dir),
     )

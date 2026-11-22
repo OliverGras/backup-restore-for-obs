@@ -103,5 +103,6 @@ class TaskRunner(QObject):
         if self._thread is not None:
             self._thread.quit()
             self._thread.wait()
+            self._thread.deleteLater()  # a child of this runner; not needed again
         self._thread = self._worker = self._on_done = self._on_error = None
         self.ended.emit()

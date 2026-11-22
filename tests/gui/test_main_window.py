@@ -10,15 +10,18 @@ import pytest
 
 pytest.importorskip("PySide6.QtWidgets", exc_type=ImportError)
 
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtCore import QCoreApplication, QEvent  # noqa: E402
+from PySide6.QtGui import QActionGroup  # noqa: E402
+from PySide6.QtWidgets import QApplication, QMenuBar, QMessageBox  # noqa: E402
 
 from obs_backup import backup  # noqa: E402
 from obs_backup.gui.helpers import documents_dir  # noqa: E402
 from obs_backup.gui.main_window import MainWindow  # noqa: E402
 from obs_backup.gui.settings import AppSettings  # noqa: E402
-from obs_backup.i18n import DEFAULT, LANGUAGES, set_language  # noqa: E402
+from obs_backup.gui.tasks import TaskRunner  # noqa: E402
+from obs_backup.i18n import DEFAULT, LANGUAGES, set_language, tr  # noqa: E402
 
-from support import craft_backup  # noqa: E402
+from support import craft_backup, everything  # noqa: E402
 
 
 @pytest.fixture
@@ -133,3 +136,32 @@ def test_damaged_backup_cannot_be_restored(window: MainWindow, tmp_path: Path) -
     assert window.restore_tab._manifest is None
     assert not window.restore_tab._button.isEnabled()
     assert window.restore_tab._tree.topLevelItemCount() == 0
+
+
+def test_language_change_replaces_the_menus(window: MainWindow) -> None:
+    for code in [*sorted(LANGUAGES), DEFAULT]:
+        window.change_language(code)
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert len(window.findChildren(QActionGroup)) == 1
+    assert len(window.findChildren(QMenuBar)) == 1
+
+
+def test_close_while_busy_says_why(window: MainWindow, monkeypatch: pytest.MonkeyPatch) -> None:
+    told: list[str] = []
+    monkeypatch.setattr(TaskRunner, "busy", property(lambda self: True))
+    monkeypatch.setattr(QMessageBox, "information", lambda parent, title, text: told.append(text))
+    assert not window.close()
+    assert told == [tr("close_while_busy")]
+
+
+def test_media_options_off_for_backup_that_cannot_be_read(
+    window: MainWindow, obs: Path, tmp_path: Path
+) -> None:
+    tab = window.restore_tab
+    with_media = tmp_path / "with media.zip"
+    backup.create_backup(obs, with_media, everything(obs))
+    tab.refresh_backups(select=with_media)
+    assert tab._media_check.isEnabled()
+
+    tab.refresh_backups(select=craft_backup(tmp_path / "bad.zip", {"format_version": None}))
+    assert not tab._media_check.isEnabled() and not tab._media_dir.isEnabled()

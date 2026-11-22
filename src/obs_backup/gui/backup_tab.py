@@ -90,7 +90,7 @@ class BackupTab(QWidget):
         self._tree.populate(
             profiles=[(p.name, p.dir_name) for p in obs_config.list_profiles(cfg)],
             scenes=[(s.name, s.file_name) for s in obs_config.list_scene_collections(cfg)],
-            global_settings=any((cfg / f).is_file() for f in obs_config.GLOBAL_FILES),
+            global_settings=obs_config.has_global_settings(cfg),
             plugin_config=obs_config.has_plugin_config(cfg),
             plugins=obs_config.has_plugins(cfg),
             browser=obs_config.has_browser_data(cfg),

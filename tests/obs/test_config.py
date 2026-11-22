@@ -20,3 +20,9 @@ def test_reads_config(obs: Path) -> None:
         and obs_config.has_browser_data(obs)
         and not obs_config.has_plugins(obs)
     )
+
+
+def test_general_settings_found_by_any_of_their_parts(tmp_path: Path) -> None:
+    assert not obs_config.has_global_settings(tmp_path)
+    (tmp_path / "plugin_manager").mkdir()  # no global.ini or user.ini yet
+    assert obs_config.has_global_settings(tmp_path)

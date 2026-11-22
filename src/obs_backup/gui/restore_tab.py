@@ -131,6 +131,7 @@ class RestoreTab(QWidget):
     def _on_backup_selected(self, *_: object) -> None:
         self._manifest = None
         self._tree.clear()
+        self._set_media_enabled(False)  # until a backup with media is loaded
         path = self.selected_backup()
         if path is None:
             self._info.setText(tr("no_backups"))
@@ -161,11 +162,13 @@ class RestoreTab(QWidget):
             browser=m.browser_data,
             browser_checked=True,
         )
-        has_media = bool(m.media)
-        self._media_check.setEnabled(has_media)
-        self._media_dir.setEnabled(has_media)
+        self._set_media_enabled(bool(m.media))
         self._manifest = m
         self.update_enabled()
+
+    def _set_media_enabled(self, enabled: bool) -> None:
+        self._media_check.setEnabled(enabled)
+        self._media_dir.setEnabled(enabled)
 
     def update_enabled(self) -> None:
         """Allow restoring only with a valid backup, OBS closed and no task running."""

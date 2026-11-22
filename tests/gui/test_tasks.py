@@ -10,6 +10,7 @@ import pytest
 
 pytest.importorskip("PySide6.QtWidgets", exc_type=ImportError)
 
+from PySide6.QtCore import QCoreApplication, QEvent, QThread  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from obs_backup.gui.tasks import TaskRunner  # noqa: E402
@@ -48,3 +49,12 @@ def test_finished_task_reports_its_result(app: QApplication) -> None:
     runner.run("x", lambda progress: 42, on_done=results.append)
     _wait_until(lambda: not runner.busy, app)
     assert results == [42]
+
+
+def test_finished_task_frees_its_thread(app: QApplication) -> None:
+    runner = TaskRunner()
+    for _ in range(3):
+        runner.run("x", lambda progress: None, on_done=lambda _: None)
+        _wait_until(lambda: not runner.busy, app)
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert runner.findChildren(QThread) == []

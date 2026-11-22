@@ -75,10 +75,10 @@ class Manifest:
             scene_collections=[
                 {"name": n, "file": f} for n, f in _named(data, "scene_collections", "file")
             ],
-            global_settings=bool(data.get("global_settings")),
-            plugin_config=bool(data.get("plugin_config")),
-            browser_data=bool(data.get("browser_data")),
-            plugins=bool(data.get("plugins")),
+            global_settings=_flag(data, "global_settings"),
+            plugin_config=_flag(data, "plugin_config"),
+            browser_data=_flag(data, "browser_data"),
+            plugins=_flag(data, "plugins"),
             media=_media(data),
             format_version=version,
         )
@@ -95,6 +95,13 @@ def _is_int(value: object) -> bool:
 def _text(data: dict[str, Any], key: str) -> str:
     value = data.get(key, "")
     if not isinstance(value, str):
+        raise _damaged(f"{key} is {value!r}")
+    return value
+
+
+def _flag(data: dict[str, Any], key: str) -> bool:
+    value = data.get(key, False)
+    if not isinstance(value, bool):  # "false" would otherwise count as true
         raise _damaged(f"{key} is {value!r}")
     return value
 

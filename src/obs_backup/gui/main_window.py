@@ -4,6 +4,7 @@ from PySide6.QtCore import Slot
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent
 from PySide6.QtWidgets import (
     QMainWindow,
+    QMenuBar,
     QMessageBox,
     QProgressBar,
     QStyle,
@@ -69,8 +70,10 @@ class MainWindow(QMainWindow):
         self._on_config_dir_changed()
 
     def _build_menu(self) -> None:
-        menu_bar = self.menuBar()
-        menu_bar.clear()
+        # A new menu bar: setMenuBar deletes the previous one with its menus and
+        # actions, which clear() would leave behind after each language change.
+        menu_bar = QMenuBar()
+        self.setMenuBar(menu_bar)
 
         file_menu = menu_bar.addMenu(tr("menu_file"))
         file_menu.addAction(
@@ -82,9 +85,9 @@ class MainWindow(QMainWindow):
         file_menu.addAction(tr("menu_quit"), self.close)
 
         language_menu = menu_bar.addMenu(tr("menu_language"))
-        group = QActionGroup(self)
+        group = QActionGroup(language_menu)
         for code, name in LANGUAGES.items():
-            action = QAction(name, self, checkable=True)
+            action = QAction(name, language_menu, checkable=True)
             action.setChecked(code == current_language())
             action.triggered.connect(lambda _=False, c=code: self.change_language(c))
             group.addAction(action)
@@ -140,5 +143,6 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 (Qt API)
         if self._tasks.busy:
             event.ignore()
+            QMessageBox.information(self, tr("app_title"), tr("close_while_busy"))
             return
         super().closeEvent(event)

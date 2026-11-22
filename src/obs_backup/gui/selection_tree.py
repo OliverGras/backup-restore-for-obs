@@ -1,6 +1,7 @@
 """Checkable tree of the things a backup can hold."""
 
 from collections.abc import Iterator
+from enum import StrEnum
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QPushButton, QTreeWidget, QTreeWidgetItem, QWidget
@@ -13,6 +14,17 @@ ROLE_KEY = Qt.ItemDataRole.UserRole + 1
 
 CHECKED = Qt.CheckState.Checked
 UNCHECKED = Qt.CheckState.Unchecked
+
+
+class Kind(StrEnum):
+    """What a tree item stands for (stored in ``ROLE_KIND``)."""
+
+    PROFILES = "profiles"
+    SCENES = "scenes"
+    GLOBAL = "global"
+    PLUGIN_CONFIG = "plugin_config"
+    PLUGINS = "plugins"
+    BROWSER = "browser"
 
 
 class SelectionTree(QTreeWidget):
@@ -38,21 +50,25 @@ class SelectionTree(QTreeWidget):
         """Fill the tree. ``profiles`` and ``scenes`` are ``(display name, key)`` pairs."""
         self.blockSignals(True)
         self.clear()
-        self._add_group("profiles", tr("item_profiles"), profiles)
-        self._add_group("scenes", tr("item_scenes"), scenes)
+        self._add_group(Kind.PROFILES, tr("item_profiles"), profiles)
+        self._add_group(Kind.SCENES, tr("item_scenes"), scenes)
         if global_settings:
-            self._add_item("global", tr("item_global"), tr("item_global_hint"))
+            self._add_item(Kind.GLOBAL, tr("item_global"), tr("item_global_hint"))
         if plugin_config:
-            self._add_item("plugin_config", tr("item_plugin_config"), tr("item_plugin_config_hint"))
+            self._add_item(
+                Kind.PLUGIN_CONFIG, tr("item_plugin_config"), tr("item_plugin_config_hint")
+            )
         if plugins:
-            self._add_item("plugins", tr("item_plugins"), "")
+            self._add_item(Kind.PLUGINS, tr("item_plugins"), "")
         if browser:
-            self._add_item("browser", tr("item_browser"), tr("item_browser_hint"), browser_checked)
+            self._add_item(
+                Kind.BROWSER, tr("item_browser"), tr("item_browser_hint"), browser_checked
+            )
         for col in (0, 1):
             self.resizeColumnToContents(col)
         self.blockSignals(False)
 
-    def _add_group(self, kind: str, label: str, children: list[tuple[str, str]]) -> None:
+    def _add_group(self, kind: Kind, label: str, children: list[tuple[str, str]]) -> None:
         if not children:
             return
         parent = QTreeWidgetItem(self, [label, str(len(children))])
@@ -68,7 +84,7 @@ class SelectionTree(QTreeWidget):
             child.setCheckState(0, CHECKED)
         parent.setExpanded(True)
 
-    def _add_item(self, kind: str, label: str, hint: str, checked: bool = True) -> None:
+    def _add_item(self, kind: Kind, label: str, hint: str, checked: bool = True) -> None:
         item = QTreeWidgetItem(self, [label, hint])
         item.setData(0, ROLE_KIND, kind)
         item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
@@ -99,19 +115,19 @@ class SelectionTree(QTreeWidget):
                     for child in _children(item)
                     if child.checkState(0) == CHECKED
                 ]
-                if kind == "profiles":
+                if kind == Kind.PROFILES:
                     sel.profiles = keys
-                elif kind == "scenes":
+                elif kind == Kind.SCENES:
                     sel.scene_collections = keys
                 continue
             on = item.checkState(0) == CHECKED
-            if kind == "global":
+            if kind == Kind.GLOBAL:
                 sel.global_settings = on
-            elif kind == "plugin_config":
+            elif kind == Kind.PLUGIN_CONFIG:
                 sel.plugin_config = on
-            elif kind == "plugins":
+            elif kind == Kind.PLUGINS:
                 sel.plugins = on
-            elif kind == "browser":
+            elif kind == Kind.BROWSER:
                 sel.browser_data = on
         return sel
 

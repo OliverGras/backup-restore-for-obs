@@ -116,4 +116,5 @@ STRINGS: dict[str, str] = {
     "error_title": "Fehler",
     "error_text": "Etwas ist schiefgelaufen:\n{error}",
     "language_changed": "Sprache geändert.",
+    "close_while_busy": "Bitte warte, bis das Backup oder die Wiederherstellung fertig ist.",
 }

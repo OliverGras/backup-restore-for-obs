@@ -37,6 +37,7 @@ DAMAGED = {
     "format_version is text": {"format_version": "x"},
     "format_version is null": {"format_version": None},
     "created is not text": {"created": 5},
+    "flag is text": {"global_settings": "false"},
     "profiles is not a list": {"profiles": "Stream"},
     "profile without dir": {"profiles": [{"name": "Stream"}]},
     "profile is a string": {"profiles": ["Stream"]},
