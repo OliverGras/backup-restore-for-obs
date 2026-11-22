@@ -1,6 +1,6 @@
 """Build the standalone app with PyInstaller.
 
-    python packaging/build.py
+    uv run python packaging/build.py
 
 Output: dist/Backup-Restore-for-OBS.exe (Windows), dist/Backup & Restore for OBS.app (macOS),
 dist/Backup-Restore-for-OBS (Linux).

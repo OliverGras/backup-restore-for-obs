@@ -94,22 +94,22 @@ Found a bug? Please [open an issue](../../issues).
 
 ## Run from source
 
-Requires Python 3.10 or newer.
+The project uses [uv](https://docs.astral.sh/uv/) to manage Python, the dependencies and the commands. Install uv, then:
 
 ```bash
 git clone https://github.com/OliverGras/backup-restore-for-obs.git
 cd backup-restore-for-obs
-python -m venv .venv
-# Windows: .venv\Scripts\activate    macOS/Linux: source .venv/bin/activate
-pip install -e ".[dev]"
-python -m obs_backup      # start the app
-pytest                    # run the tests
+uv sync                          # create .venv with the locked dependencies
+uv run backup-restore-for-obs    # start the app
+uv run pytest                    # run the tests
 ```
+
+uv uses the Python version in `.python-version` (3.13); the app itself supports Python 3.10 or newer. Dependency versions are pinned in `uv.lock`. To update them, run `uv lock --upgrade` and commit the new lock file.
 
 Build a standalone app (output in `dist/`):
 
 ```bash
-python packaging/build.py
+uv run python packaging/build.py
 ```
 
 To release, set the version in [`src/obs_backup/__init__.py`](src/obs_backup/__init__.py), commit, then push a tag with the same version (`git tag 1.0.0 && git push origin 1.0.0`). GitHub Actions builds the apps for all three systems and creates a draft release with them.

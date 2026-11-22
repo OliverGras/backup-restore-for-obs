@@ -27,14 +27,15 @@ classifiers = [
 Homepage = "https://github.com/OliverGras/backup-restore-for-obs"
 Issues = "https://github.com/OliverGras/backup-restore-for-obs/issues"
 
-[project.optional-dependencies]
+[project.gui-scripts]
+backup-restore-for-obs = "obs_backup.__main__:main"
+
+# Development tools; `uv sync` installs them by default.
+[dependency-groups]
 dev = [
     "pytest>=8",
     "pyinstaller>=6",
 ]
-
-[project.gui-scripts]
-backup-restore-for-obs = "obs_backup.__main__:main"
 
 [tool.hatch.version]
 path = "src/obs_backup/__init__.py"  # the only place the version is set
