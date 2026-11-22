@@ -41,7 +41,11 @@ def craft_backup(
     with zipfile.ZipFile(path, "w") as zf:
         zf.writestr("manifest.json", manifest)
         for name, text in (members or {}).items():
-            zf.writestr(name, text)
+            info = zipfile.ZipInfo(name)
+            # Stored exactly as given: ZipInfo turns "\\" into "/" on Windows and cuts
+            # a name short at "\\0", but backups from elsewhere can hold both.
+            info.filename = name
+            zf.writestr(info, text)
     return path
 
 

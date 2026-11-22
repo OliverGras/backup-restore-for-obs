@@ -46,13 +46,13 @@ def can_create(rel: str) -> bool:
     """Whether this OS allows every name in ``rel`` (a ``/``-separated path).
 
     A backup from Linux or macOS can hold names Windows refuses: ``a?b``, ``x:y``,
-    a trailing dot, or device names such as ``CON``. Checking them first keeps a
-    restore from failing halfway.
+    ``a\\b`` (a backslash separates folders there), a trailing dot, or device names
+    such as ``CON``. Checking them first keeps a restore from failing halfway.
     """
-    return not (WINDOWS and ntpath.isreserved(rel))
+    return not (WINDOWS and ("\\" in rel or ntpath.isreserved(rel)))
 
 
-_NOT_ON_WINDOWS = re.compile(r'[<>:"|?*\x00-\x1f]')
+_NOT_ON_WINDOWS = re.compile(r'[<>:"|?*\\\x00-\x1f]')
 
 
 def creatable_name(name: str) -> str:

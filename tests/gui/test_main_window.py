@@ -17,9 +17,9 @@ from PySide6.QtGui import QActionGroup  # noqa: E402
 from PySide6.QtWidgets import QApplication, QMenuBar, QMessageBox  # noqa: E402
 
 from obs_backup import backup  # noqa: E402
-from obs_backup.gui.helpers import documents_dir  # noqa: E402
+from obs_backup.gui.helpers import documents_dir, error_message  # noqa: E402
 from obs_backup.gui.install_panel import InstallPanel  # noqa: E402
-from obs_backup.gui.main_window import MainWindow, error_message  # noqa: E402
+from obs_backup.gui.main_window import MainWindow  # noqa: E402
 from obs_backup.gui.settings import AppSettings  # noqa: E402
 from obs_backup.gui.tasks import TaskRunner  # noqa: E402
 from obs_backup.i18n import DEFAULT, LANGUAGES, set_language, tr  # noqa: E402
@@ -201,6 +201,12 @@ def test_errors_are_worded_in_the_chosen_language(window: MainWindow) -> None:
     assert failed.startswith("Die Wiederherstellung ist fehlgeschlagen") and "kaputt" in failed
     incomplete = error_message(backup.IncompleteSafetyBackupError(["global.ini"]))
     assert "global.ini" in incomplete and "Vorher den aktuellen Stand sichern" in incomplete
+
+    damaged = backup.InvalidBackupError("damaged_file", name="config/x", error=OSError("y"))
+    assert error_message(damaged) == "Beschädigte Datei im Backup: config/x\ny"
+    assert str(damaged) == "Damaged file in the backup: config/x\ny"  # for logs: English
+    nested = error_message(backup.RestoreFailedError(damaged, Path("safety.zip")))
+    assert "Beschädigte Datei im Backup" in nested  # the cause is worded too
 
 
 def test_names_this_system_cannot_use_are_shown(

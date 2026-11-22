@@ -155,7 +155,7 @@ def on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.usefixtures("on_windows")
-@pytest.mark.parametrize("name", ["a?b.ini", "x:y.ini", "dot.", "CON"])
+@pytest.mark.parametrize("name", ["a?b.ini", "x:y.ini", "dot.", "CON", r"x\y.ini"])
 def test_name_windows_refuses_stops_before_any_change(obs: Path, tmp_path: Path, name: str) -> None:
     zip_path = craft_backup(
         tmp_path / "linux.zip",
@@ -590,3 +590,82 @@ def test_other_errors_moving_a_file_are_not_hidden(
     _replace_failing_from_staging(monkeypatch, PermissionError(errno.EACCES, "denied"))
     with pytest.raises(PermissionError):
         backup.restore_backup(dest, obs, sel)
+
+
+@pytest.mark.usefixtures("on_windows")
+def test_files_of_a_linux_profile_with_backslash_stay_out_of_other_profiles(
+    tmp_path: Path,
+) -> None:
+    """On Windows, zipfile reads "a\\b/basic.ini" as "a/b/basic.ini": a file of "a"."""
+    zip_path = craft_backup(
+        tmp_path / "linux.zip",
+        {"profiles": [{"dir": "a"}, {"dir": r"a\b"}], "skipped": []},
+        {
+            "config/basic/profiles/a/basic.ini": "[General]\nName=a\n",
+            "config/basic/profiles/a\\b/basic.ini": "[General]\nName=a and b\n",
+        },
+    )
+    target = tmp_path / "new"
+    backup.restore_backup(zip_path, target, Selection(profiles=["a"]))
+    assert _files(target) == ["basic/profiles/a/basic.ini"]
+
+
+def test_name_holding_nul_is_refused(tmp_path: Path) -> None:
+    """zipfile cuts such a name short, which would restore "a" for "a\\0../../evil"."""
+    zip_path = craft_backup(tmp_path / "bad.zip", {}, {"config/plugin_manager/a\0evil": "x"})
+    with pytest.raises(backup.InvalidBackupError, match="Unsafe path"):
+        backup.restore_backup(zip_path, tmp_path / "cfg", Selection(global_settings=True))
+    assert not (tmp_path / "cfg").exists()
+
+
+def test_backup_from_an_older_version_removes_no_files(obs: Path, tmp_path: Path) -> None:
+    """Older backups don't record which files they lack, so none count as complete."""
+    dest = tmp_path / "b.zip"
+    sel = Selection(profiles=["Twitch_Stream"], browser_data=True)
+    backup.create_backup(obs, dest, sel)
+    with zipfile.ZipFile(dest) as zf:
+        manifest = json.loads(zf.read("manifest.json"))
+    del manifest["skipped"]
+    replace_member(dest, "manifest.json", json.dumps(manifest))
+    assert backup.read_manifest(dest).skipped is None
+    write(obs / "basic/profiles/Twitch_Stream/added-later.ini")
+    write(obs / "plugin_config/obs-browser/Preferences", "newer")
+
+    backup.restore_backup(dest, obs, sel)
+    assert (obs / "basic/profiles/Twitch_Stream/added-later.ini").exists()
+    assert (obs / "plugin_config/obs-browser/Preferences").exists()
+    assert "Twitch Stream" in (obs / "basic/profiles/Twitch_Stream/basic.ini").read_text()
+
+
+def test_profile_with_a_folder_that_could_not_be_listed_keeps_it(
+    obs: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    extra = write(obs / "basic/profiles/Twitch_Stream/sub/extra.ini")
+    real_scandir = os.scandir
+
+    def scandir(path: Any = ".") -> Any:
+        if Path(path).name == "sub":
+            raise PermissionError(13, "Access is denied", str(path))
+        return real_scandir(path)
+
+    dest = tmp_path / "b.zip"
+    sel = Selection(profiles=["Twitch_Stream"])
+    with monkeypatch.context() as m:
+        m.setattr(os, "scandir", scandir)
+        backup.create_backup(obs, dest, sel)
+    result = backup.restore_backup(dest, obs, sel)
+    assert extra.exists()
+    assert result.kept_current == ["basic/profiles/Twitch_Stream/sub/"]
+
+
+def test_linked_folder_inside_a_profile_survives_the_restore(obs: Path, tmp_path: Path) -> None:
+    elsewhere = tmp_path / "overlays"
+    write(elsewhere / "overlay.png", "PNG")
+    _link(obs / "basic/profiles/Twitch_Stream/overlays", elsewhere)
+    dest = tmp_path / "b.zip"
+    sel = Selection(profiles=["Twitch_Stream"])
+    backup.create_backup(obs, dest, sel)
+
+    backup.restore_backup(dest, obs, sel)
+    assert _is_link(obs / "basic/profiles/Twitch_Stream/overlays")
+    assert (elsewhere / "overlay.png").read_text() == "PNG"

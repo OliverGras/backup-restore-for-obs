@@ -58,3 +58,9 @@ def tr(key: str, **kwargs: object) -> str:
     """The text for ``key`` in the current language, with ``{placeholders}`` filled in."""
     text = STRINGS[_current].get(key) or STRINGS[DEFAULT].get(key, key)
     return text.format(**kwargs) if kwargs else text
+
+
+def preview_list(items: list[str], limit: int = 10) -> str:
+    """The first ``limit`` items, one per line, with "…" if there are more."""
+    text = "\n".join(items[:limit])
+    return text + "\n…" if len(items) > limit else text

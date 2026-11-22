@@ -13,14 +13,24 @@ def walk_files(
     root: Path,
     skip_dir: Callable[[str], bool] | None = None,
     skip_file: Callable[[str], bool] | None = None,
+    unreadable: list[Path] | None = None,
 ) -> list[Path]:
-    """All files under ``root`` (or ``root`` itself if it is a file), sorted."""
+    """All files under ``root`` (or ``root`` itself if it is a file), sorted.
+
+    Linked folders inside ``root`` are not followed. Folders that can't be listed
+    are added to ``unreadable``.
+    """
     if root.is_file():
         return [root]
     if not root.is_dir():
         return []
+
+    def note(error: OSError) -> None:
+        if unreadable is not None and error.filename:
+            unreadable.append(Path(error.filename))
+
     out = []
-    for dirpath, dirnames, filenames in os.walk(root):
+    for dirpath, dirnames, filenames in os.walk(root, onerror=note):
         if skip_dir:
             dirnames[:] = [d for d in dirnames if not skip_dir(d)]
         dirnames.sort()
@@ -40,22 +50,40 @@ def _is_browser_skip_file(name: str) -> bool:
     return name in obs_config.BROWSER_SKIP_FILES or name.endswith(".pma")
 
 
-def browser_files(config_dir: Path) -> list[Path]:
+def browser_files(config_dir: Path, unreadable: list[Path] | None = None) -> list[Path]:
     """The browser data a backup holds: everything but caches and lock files."""
     return walk_files(
         config_dir / obs_config.BROWSER_DIR,
         skip_dir=_is_browser_cache_dir,
         skip_file=_is_browser_skip_file,
+        unreadable=unreadable,
     )
 
 
-def collect_files(config_dir: Path, sel: Selection) -> list[Path]:
-    """Files under ``config_dir`` that ``sel`` covers (without media)."""
-    # Python 3.15 allows [*walk_files(...) for d in ...] (PEP 798), but Pyright/Pylance
+def _children(folder: Path, unreadable: list[Path] | None) -> list[Path]:
+    try:
+        return sorted(folder.iterdir())
+    except OSError:
+        if unreadable is not None:
+            unreadable.append(folder)
+        return []
+
+
+def collect_files(
+    config_dir: Path, sel: Selection, unreadable: list[Path] | None = None
+) -> list[Path]:
+    """Files under ``config_dir`` that ``sel`` covers (without media).
+
+    Folders that can't be listed are added to ``unreadable``; the files in them
+    are missing from the list.
+    """
+
+    def walk(root: Path) -> list[Path]:
+        return walk_files(root, unreadable=unreadable)
+
+    # Python 3.15 allows [*walk(...) for d in ...] (PEP 798), but Pyright/Pylance
     # 1.1.414 still reports it as a syntax error, so nested comprehensions are used here.
-    files = [
-        path for d in sel.profiles for path in walk_files(config_dir / obs_config.PROFILES_DIR / d)
-    ]
+    files = [path for d in sel.profiles for path in walk(config_dir / obs_config.PROFILES_DIR / d)]
     files += [
         path
         for f in sel.scene_collections
@@ -63,18 +91,18 @@ def collect_files(config_dir: Path, sel: Selection) -> list[Path]:
     ]
     if sel.global_settings:
         files += [config_dir / f for f in obs_config.GLOBAL_FILES if (config_dir / f).is_file()]
-        files += [path for d in obs_config.GLOBAL_DIRS for path in walk_files(config_dir / d)]
+        files += [path for d in obs_config.GLOBAL_DIRS for path in walk(config_dir / d)]
     if sel.plugin_config and (root := config_dir / obs_config.PLUGIN_CONFIG_DIR).is_dir():
         files += [
             path
-            for child in sorted(root.iterdir())
+            for child in _children(root, unreadable)
             if child.name != obs_config.BROWSER_DIR.name
-            for path in walk_files(child)
+            for path in walk(child)
         ]
     if sel.browser_data:
-        files += browser_files(config_dir)
+        files += browser_files(config_dir, unreadable)
     if sel.plugins:
-        files += walk_files(config_dir / obs_config.PLUGINS_DIR)
+        files += walk(config_dir / obs_config.PLUGINS_DIR)
     return files
 
 

@@ -44,9 +44,11 @@ class Manifest:
     plugins: bool
     media: list[MediaRef]
     # Config files (paths relative to the config folder) that could not be read
-    # when the backup was made. The parts of the config folder they belong to are
-    # restored over the current files instead of replacing them.
-    skipped: list[str] = field(default_factory=list)
+    # when the backup was made; a folder that could not be listed ends in "/".
+    # The parts of the config folder they belong to are
+    # restored over the current files instead of replacing them. None for backups
+    # made by older versions, which didn't record them.
+    skipped: list[str] | None = field(default_factory=list)
     format: str = FORMAT
     format_version: int = FORMAT_VERSION
     # Not stored: profile folders and scene collection files whose names this OS
@@ -70,20 +72,17 @@ class Manifest:
         try:
             data = json.loads(text)
         except ValueError as e:
-            raise InvalidBackupError(f"manifest.json is not valid JSON: {e}") from e
+            raise InvalidBackupError("manifest_not_json", error=e) from e
         if not isinstance(data, dict) or data.get("format") != FORMAT:
-            raise InvalidBackupError("not a Backup & Restore for OBS archive")
+            raise InvalidBackupError("not_a_backup")
         version = data.get("format_version", FORMAT_VERSION)
         if not _is_int(version):
-            raise _damaged(f"format_version is {version!r}")
+            raise _damaged("format_version", version)
         if version > FORMAT_VERSION:
-            raise InvalidBackupError(
-                f"backup format {version} is newer than this tool supports "
-                f"({FORMAT_VERSION}); please update Backup & Restore for OBS"
-            )
+            raise InvalidBackupError("format_too_new", version=version, supported=FORMAT_VERSION)
         obs_version = data.get("obs_version")
         if obs_version is not None and not isinstance(obs_version, str):
-            raise _damaged(f"obs_version is {obs_version!r}")
+            raise _damaged("obs_version", obs_version)
         unusable: list[str] = []
         return cls(
             created=_text(data, "created"),
@@ -101,14 +100,18 @@ class Manifest:
             browser_data=_flag(data, "browser_data"),
             plugins=_flag(data, "plugins"),
             media=_media(data),
-            skipped=_strings(data, "skipped"),
+            skipped=_strings(data, "skipped") if "skipped" in data else None,
             format_version=version,
             unusable=unusable,
         )
 
 
-def _damaged(detail: str) -> InvalidBackupError:
-    return InvalidBackupError(f"manifest.json is damaged: {detail}")
+def _damaged(key: str, value: object) -> InvalidBackupError:
+    """The error for a manifest whose ``key`` holds ``value``, which it must not."""
+    shown = repr(value)
+    if len(shown) > 200:
+        shown = shown[:200] + "…"
+    return InvalidBackupError("manifest_damaged", field=key, value=shown)
 
 
 def _is_int(value: object) -> bool:
@@ -118,28 +121,28 @@ def _is_int(value: object) -> bool:
 def _text(data: dict[str, Any], key: str) -> str:
     value = data.get(key, "")
     if not isinstance(value, str):
-        raise _damaged(f"{key} is {value!r}")
+        raise _damaged(key, value)
     return value
 
 
 def _flag(data: dict[str, Any], key: str) -> bool:
     value = data.get(key, False)
     if not isinstance(value, bool):  # "false" would otherwise count as true
-        raise _damaged(f"{key} is {value!r}")
+        raise _damaged(key, value)
     return value
 
 
 def _list(data: dict[str, Any], key: str) -> list[Any]:
     value = data.get(key, [])
     if not isinstance(value, list):
-        raise _damaged(f"{key} is not a list")
+        raise _damaged(key, value)
     return value
 
 
 def _strings(data: dict[str, Any], key: str) -> list[str]:
     value = _list(data, key)
     if not all(isinstance(s, str) for s in value):
-        raise _damaged(f"{key} holds something other than text")
+        raise _damaged(key, value)
     return value
 
 
@@ -155,7 +158,7 @@ def _named(
     for entry in _list(data, key):
         value = entry.get(name_key) if isinstance(entry, dict) else None
         if not isinstance(value, str) or is_impossible_name(value):
-            raise _damaged(f"invalid entry in {key}: {entry!r}")
+            raise _damaged(key, entry)
         if not (is_plain_name(value) and can_create(value)):
             unusable.append(value)
             continue
@@ -170,7 +173,7 @@ def _media(data: dict[str, Any]) -> list[MediaRef]:
         try:
             ref = MediaRef(**entry)
         except TypeError as e:
-            raise _damaged(f"invalid media entry {entry!r}") from e
+            raise _damaged("media", entry) from e
         if not (
             isinstance(ref.original, str)
             and ref.original
@@ -180,7 +183,7 @@ def _media(data: dict[str, Any]) -> list[MediaRef]:
             and isinstance(ref.used_by, list)
             and all(isinstance(f, str) for f in ref.used_by)
         ):
-            raise _damaged(f"invalid media entry {entry!r}")
+            raise _damaged("media", entry)
         refs.append(ref)
     return refs
 
@@ -190,13 +193,11 @@ def read_manifest(path: Path) -> Manifest:
         with zipfile.ZipFile(path) as zf:
             text = zf.read(MANIFEST).decode("utf-8")
     except KeyError as e:
-        raise InvalidBackupError(
-            "manifest.json missing – not a Backup & Restore for OBS archive"
-        ) from e
+        raise InvalidBackupError("manifest_missing") from e
     except UnicodeDecodeError as e:
-        raise InvalidBackupError(f"manifest.json is not valid UTF-8: {e}") from e
+        raise InvalidBackupError("manifest_not_utf8", error=e) from e
     except ZIP_ERRORS as e:
-        raise InvalidBackupError(f"not a valid zip file: {e}") from e
+        raise InvalidBackupError("not_a_zip", error=e) from e
     return Manifest.from_json(text)
 
 

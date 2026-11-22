@@ -11,7 +11,7 @@ import pytest
 from obs_backup import backup
 from obs_backup.backup import Selection, create
 
-from support import everything, unreadable
+from support import everything, unreadable, write
 
 
 def test_backup_contents(obs: Path, tmp_path: Path) -> None:
@@ -174,3 +174,35 @@ def test_backups_in_the_same_second_get_numbers(
         "obs-backup_T_2.zip",
         "obs-backup_T_3.zip",
     ]
+
+
+def test_backup_taking_a_name_meanwhile_is_not_replaced(obs: Path, tmp_path: Path) -> None:
+    """Another copy of the app may finish a backup of the same name first."""
+    dest = tmp_path / "b.zip"
+
+    def progress(done: int, total: int, current: str) -> None:
+        if not dest.exists():
+            dest.write_text("the other backup")
+
+    with pytest.raises(backup.BackupError, match="exists"):
+        backup.create_backup(obs, dest, Selection(global_settings=True), progress)
+    assert dest.read_text() == "the other backup"
+    assert not dest.with_name("b.zip.part").exists()
+
+
+def test_folder_that_cannot_be_listed_counts_as_skipped(
+    obs: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write(obs / "basic/profiles/Twitch_Stream/sub/extra.ini")
+    real_scandir = os.scandir
+
+    def scandir(path: Any = ".") -> Any:
+        if Path(path).name == "sub":
+            raise PermissionError(13, "Access is denied", str(path))
+        return real_scandir(path)
+
+    monkeypatch.setattr(os, "scandir", scandir)
+    dest = tmp_path / "b.zip"
+    result = backup.create_backup(obs, dest, Selection(profiles=["Twitch_Stream"]))
+    assert result.skipped == ["basic/profiles/Twitch_Stream/sub/"]
+    assert backup.read_manifest(dest).skipped == ["basic/profiles/Twitch_Stream/sub/"]

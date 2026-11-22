@@ -17,13 +17,13 @@ from PySide6.QtWidgets import (
 
 from obs_backup import backup
 from obs_backup.gui.constants import MEDIA_SUMMARY_DELAY_MS
-from obs_backup.gui.helpers import format_size, open_folder, preview_list
+from obs_backup.gui.helpers import format_size, open_folder
 from obs_backup.gui.install_panel import InstallPanel
 from obs_backup.gui.selection_tree import SelectionTree, selection_buttons
 from obs_backup.gui.settings import AppSettings
 from obs_backup.gui.tasks import LatestCall, TaskRunner
 from obs_backup.gui.widgets import FolderEdit
-from obs_backup.i18n import tr
+from obs_backup.i18n import preview_list, tr
 from obs_backup.obs import config as obs_config
 
 

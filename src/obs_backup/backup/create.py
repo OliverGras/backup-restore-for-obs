@@ -1,7 +1,9 @@
 """Create a backup file."""
 
+import errno
 import os
 import shutil
+import sys
 import tempfile
 import zipfile
 from collections.abc import Iterator
@@ -129,6 +131,27 @@ def _add_media_file(zf: zipfile.ZipFile, path: str, arcname: str) -> int:
     return info.file_size
 
 
+def _publish(tmp: Path, dest: Path) -> None:
+    """Rename the finished ``tmp`` to ``dest``, never replacing a file there.
+
+    Another backup can take the name while this one is written (a second copy of
+    the app); renaming then raises ``FileExistsError``.
+    """
+    if sys.platform == "win32":
+        os.rename(tmp, dest)  # refuses to replace an existing file
+        return
+    try:
+        os.link(tmp, dest)  # refuses as well; os.rename would replace
+    except FileExistsError:
+        raise
+    except OSError:  # no hard links on this drive (FAT, some network folders)
+        if dest.exists():
+            raise FileExistsError(errno.EEXIST, "file exists", str(dest)) from None
+        os.replace(tmp, dest)
+        return
+    tmp.unlink()
+
+
 def create_backup(
     config_dir: Path, dest: Path, sel: Selection, progress: Progress | None = None
 ) -> BackupResult:
@@ -143,13 +166,14 @@ def create_backup(
     """
     config_dir = Path(config_dir)
     if not config_dir.is_dir():
-        raise BackupError(f"OBS config folder not found: {config_dir}")
+        raise BackupError("config_dir_not_found", dir=config_dir)
     if sel.is_empty():
-        raise BackupError("nothing selected")
+        raise BackupError("nothing_selected")
     if dest.exists():
-        raise BackupError(f"a file with this name exists already: {dest}")
+        raise BackupError("backup_exists", path=dest)
 
-    files = collect_files(config_dir, sel)
+    unreadable: list[Path] = []
+    files = collect_files(config_dir, sel, unreadable)
     media = scan_media(config_dir, sel.scene_collections) if sel.media else []
     total = len(files) + len(media)
     result = BackupResult(path=dest, files=0, total_bytes=0)
@@ -163,11 +187,12 @@ def create_backup(
             tmp, "x", zipfile.ZIP_DEFLATED, compresslevel=6, strict_timestamps=False
         )
     except FileExistsError as e:
-        raise BackupError(f"another backup is being written to {dest}") from e
+        raise BackupError("backup_in_progress", path=dest) from e
     done = 0
     try:
         with zf:
-            skipped_config: list[str] = []
+            # A folder that can't be listed counts as skipped, written with a "/".
+            skipped_config = [f"{d.relative_to(config_dir).as_posix()}/" for d in unreadable]
             for path in files:
                 rel = path.relative_to(config_dir).as_posix()
                 if progress:
@@ -196,7 +221,10 @@ def create_backup(
 
             manifest = _manifest(config_dir, sel, written_media, skipped_config)
             zf.writestr(MANIFEST, manifest.to_json())
-        os.replace(tmp, dest)
+        try:
+            _publish(tmp, dest)
+        except FileExistsError as e:
+            raise BackupError("backup_exists", path=dest) from e
     except BaseException:
         tmp.unlink(missing_ok=True)
         raise

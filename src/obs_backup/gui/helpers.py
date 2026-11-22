@@ -5,6 +5,9 @@ from pathlib import Path
 from PySide6.QtCore import QStandardPaths, QUrl
 from PySide6.QtGui import QDesktopServices
 
+from obs_backup.backup.errors import BackupError, describe
+from obs_backup.i18n import tr
+
 
 def absolute_path(text: str) -> Path | None:
     """``text`` as a path, or None if it is empty or relative.
@@ -36,7 +39,12 @@ def format_size(n: float) -> str:
     return f"{n:.1f} GB"
 
 
-def preview_list(items: list[str], limit: int = 10) -> str:
-    """The first ``limit`` items, one per line, with "…" if there are more."""
-    text = "\n".join(items[:limit])
-    return text + "\n…" if len(items) > limit else text
+def error_message(error: BaseException) -> str:
+    """The message of ``error`` for the user: in their language if the app raised it."""
+    if isinstance(error, BackupError):
+        params = {
+            k: error_message(v) if isinstance(v, BaseException) else v
+            for k, v in error.params.items()
+        }
+        return tr(f"error_{error.code}", **params)
+    return describe(error)

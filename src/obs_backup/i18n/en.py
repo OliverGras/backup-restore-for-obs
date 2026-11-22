@@ -130,15 +130,39 @@ STRINGS: dict[str, str] = {
     # Errors and messages
     "error_title": "Error",
     "error_text": "Something went wrong:\n{error}",
-    "restore_failed": (
+    "error_restore_failed": (
         "The restore failed:\n{error}\n\nThe OBS config folder as it was before the "
         "restore is saved in:\n{path}"
     ),
-    "safety_incomplete": (
+    "error_safety_incomplete": (
         "The current state could not be backed up completely, so nothing was restored. "
         "{count} files could not be read:\n{files}\n\nTo restore without backing up the "
         "current state, untick “Back up the current state first”."
     ),
     "language_changed": "Language changed.",
     "close_while_busy": "Please wait until the backup or restore has finished.",
+    # Errors the app words itself (error_<code> of BackupError)
+    "error_config_dir_not_found": "OBS config folder not found: {dir}",
+    "error_nothing_selected": "Nothing is selected.",
+    "error_backup_exists": "A file with this name exists already: {path}",
+    "error_backup_in_progress": "Another backup is being written to {path}",
+    "error_manifest_missing": (
+        "manifest.json is missing: this is not a Backup & Restore for OBS backup."
+    ),
+    "error_manifest_not_utf8": "manifest.json is not valid UTF-8: {error}",
+    "error_manifest_not_json": "manifest.json is not valid JSON: {error}",
+    "error_not_a_zip": "This is not a valid zip file: {error}",
+    "error_not_a_backup": "This is not a Backup & Restore for OBS backup.",
+    "error_format_too_new": (
+        "This backup has format {version}, but this version of Backup & Restore for OBS "
+        "reads format {supported} at most. Please update the app."
+    ),
+    "error_manifest_damaged": "manifest.json is damaged: {field} = {value}",
+    "error_unsafe_path": "Unsafe path in the backup: {path}",
+    "error_unsafe_name": "Unsafe name in the backup: {name}",
+    "error_name_not_allowed": "File name not allowed on this system: {path}",
+    "error_damaged_scene": "Damaged scene collection in the backup: {name}\n{error}",
+    "error_damaged_file": "Damaged file in the backup: {name}\n{error}",
+    "error_folder_in_the_way": "Can't restore {path}: a folder of that name is in the way.",
+    "error_file_in_the_way": "Can't restore {path}: {folder} is a file, not a folder.",
 }

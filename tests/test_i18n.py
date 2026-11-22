@@ -9,8 +9,8 @@ import pytest
 from obs_backup.i18n import DEFAULT, STRINGS, set_language, system_language, tr
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "obs_backup"
-# Keys built at runtime, e.g. tr(f"kind_{inst.kind}").
-DYNAMIC_PREFIXES = ("kind_",)
+# Keys built at runtime, e.g. tr(f"kind_{inst.kind}") and tr(f"error_{error.code}").
+DYNAMIC_PREFIXES = ("kind_", "error_")
 
 
 def used_keys() -> set[str]:
@@ -18,6 +18,15 @@ def used_keys() -> set[str]:
     for path in SRC.rglob("*.py"):
         keys |= set(re.findall(r'\btr\(\s*"([a-z0-9_]+)"', path.read_text(encoding="utf-8")))
     return keys
+
+
+def error_codes() -> set[str]:
+    """Codes of the BackupErrors the app raises: BackupError("code", ...)."""
+    codes = set()
+    for path in SRC.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        codes |= set(re.findall(r'(?:BackupError|super\(\).__init__)\(\s*"([a-z0-9_]+)"', text))
+    return codes
 
 
 def placeholders(text: str) -> set[str]:
@@ -59,3 +68,11 @@ def test_tr_falls_back_and_formats() -> None:
     set_language("de")
     assert tr("btn_restore") == "Wiederherstellen"
     set_language(DEFAULT)
+
+
+def test_every_error_has_its_text() -> None:
+    """Each code raised has an error_<code> text, and each such text a code."""
+    codes = error_codes()
+    assert len(codes) > 15  # the search finds them
+    error_keys = {k for k in STRINGS[DEFAULT] if k.startswith("error_")}
+    assert error_keys - {"error_title", "error_text"} == {f"error_{c}" for c in codes}

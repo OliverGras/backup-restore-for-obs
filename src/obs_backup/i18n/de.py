@@ -128,11 +128,11 @@ STRINGS: dict[str, str] = {
     # Errors and messages
     "error_title": "Fehler",
     "error_text": "Etwas ist schiefgelaufen:\n{error}",
-    "restore_failed": (
+    "error_restore_failed": (
         "Die Wiederherstellung ist fehlgeschlagen:\n{error}\n\nDer "
         "OBS-Konfigurationsordner vor der Wiederherstellung ist gesichert unter:\n{path}"
     ),
-    "safety_incomplete": (
+    "error_safety_incomplete": (
         "Der aktuelle Stand konnte nicht vollständig gesichert werden, daher wurde nichts "
         "wiederhergestellt. {count} Dateien konnten nicht gelesen werden:\n{files}\n\n"
         "Um ohne Sicherung des aktuellen Stands wiederherzustellen, „Vorher den aktuellen "
@@ -140,4 +140,32 @@ STRINGS: dict[str, str] = {
     ),
     "language_changed": "Sprache geändert.",
     "close_while_busy": "Bitte warte, bis das Backup oder die Wiederherstellung fertig ist.",
+    # Fehler, die die App selbst formuliert (error_<code> von BackupError)
+    "error_config_dir_not_found": "OBS-Konfigurationsordner nicht gefunden: {dir}",
+    "error_nothing_selected": "Nichts ausgewählt.",
+    "error_backup_exists": "Eine Datei mit diesem Namen gibt es schon: {path}",
+    "error_backup_in_progress": "Ein anderes Backup wird gerade nach {path} geschrieben.",
+    "error_manifest_missing": (
+        "manifest.json fehlt: Das ist kein Backup von Backup & Restore for OBS."
+    ),
+    "error_manifest_not_utf8": "manifest.json ist kein gültiges UTF-8: {error}",
+    "error_manifest_not_json": "manifest.json ist kein gültiges JSON: {error}",
+    "error_not_a_zip": "Das ist keine gültige ZIP-Datei: {error}",
+    "error_not_a_backup": "Das ist kein Backup von Backup & Restore for OBS.",
+    "error_format_too_new": (
+        "Dieses Backup hat das Format {version}, diese Version von Backup & Restore for "
+        "OBS liest höchstens Format {supported}. Bitte die App aktualisieren."
+    ),
+    "error_manifest_damaged": "manifest.json ist beschädigt: {field} = {value}",
+    "error_unsafe_path": "Unsicherer Pfad im Backup: {path}",
+    "error_unsafe_name": "Unsicherer Name im Backup: {name}",
+    "error_name_not_allowed": "Dieser Dateiname ist auf diesem System nicht erlaubt: {path}",
+    "error_damaged_scene": "Beschädigte Szenensammlung im Backup: {name}\n{error}",
+    "error_damaged_file": "Beschädigte Datei im Backup: {name}\n{error}",
+    "error_folder_in_the_way": (
+        "{path} kann nicht wiederhergestellt werden: Ein Ordner mit diesem Namen ist im Weg."
+    ),
+    "error_file_in_the_way": (
+        "{path} kann nicht wiederhergestellt werden: {folder} ist eine Datei, kein Ordner."
+    ),
 }

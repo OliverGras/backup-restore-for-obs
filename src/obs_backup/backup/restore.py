@@ -68,18 +68,18 @@ def safe_target(base: Path, rel: str) -> Path:
     ``..``, ``.`` and empty segments are refused even when the path stays inside
     ``base``: ``basic/profiles/P/../../../plugins/x`` would otherwise pass as a
     file of profile ``P`` and land in a part of the folder that was not selected.
-    (``zipfile`` turns backslashes in member names into ``/`` on Windows.)
+    A backslash is part of a name here; on Windows ``can_create`` refuses it.
 
     The check is on the path as written, without resolving symlinks: a folder the
     user linked elsewhere (``basic/scenes`` in a synced folder) is restored into.
     A backup can't add symlinks, so the links followed are the user's own.
     """
-    if any(part in ("", ".", "..") for part in rel.split("/")):
-        raise InvalidBackupError(f"unsafe path in backup: {rel}")
+    if "\0" in rel or any(part in ("", ".", "..") for part in rel.split("/")):
+        raise InvalidBackupError("unsafe_path", path=rel)
     base = base.absolute()
     target = base / rel  # an absolute rel (C:/x on Windows) replaces base
     if base not in target.parents:
-        raise InvalidBackupError(f"unsafe path in backup: {rel}")
+        raise InvalidBackupError("unsafe_path", path=rel)
     return target
 
 
@@ -88,17 +88,21 @@ def _config_target(config_dir: Path, name: str) -> Path:
     rel = name[len(CONFIG_PREFIX) :]
     target = safe_target(config_dir, rel)
     if not can_create(rel):
-        raise InvalidBackupError(f"file name not allowed on this system: {rel}")
+        raise InvalidBackupError("name_not_allowed", path=rel)
     return target
 
 
 def _empty(folder: Path) -> None:
-    """Remove everything in ``folder``; a linked folder stays a link."""
+    """Remove everything in ``folder`` except the folders linked elsewhere.
+
+    Backups don't follow links, so they don't hold what a linked folder contains,
+    and a restore leaves such folders alone. ``folder`` itself may be a link.
+    """
     for child in folder.iterdir():
-        if child.is_dir() and not (child.is_symlink() or child.is_junction()):
-            shutil.rmtree(child)
-        else:
+        if not child.is_dir():
             child.unlink()
+        elif not (child.is_symlink() or child.is_junction()):
+            shutil.rmtree(child)
 
 
 def _move(src: Path, dst: Path) -> None:
@@ -189,7 +193,7 @@ def _rewritten_scene(zf: zipfile.ZipFile, name: str, mapping: dict[str, str]) ->
     try:
         data = json.loads(zf.read(name).decode("utf-8-sig"))
     except (ValueError, *ZIP_ERRORS) as e:
-        raise InvalidBackupError(f"damaged scene collection in backup: {name}: {e}") from e
+        raise InvalidBackupError("damaged_scene", name=name, error=e) from e
     return dump_scene_json(rewrite_paths(data, mapping))
 
 
@@ -199,13 +203,13 @@ def _unpack(zf: zipfile.ZipFile, name: str, dest: Path) -> None:
         with zf.open(name) as src, dest.open("wb") as dst:
             shutil.copyfileobj(src, dst)
     except ZIP_ERRORS as e:
-        raise InvalidBackupError(f"damaged file in backup: {name}: {e}") from e
+        raise InvalidBackupError("damaged_file", name=name, error=e) from e
 
 
 def _check_names(sel: Selection) -> None:
     for name in [*sel.profiles, *sel.scene_collections]:
         if not is_plain_name(name):
-            raise InvalidBackupError(f"unsafe name in backup: {name!r}")
+            raise InvalidBackupError("unsafe_name", name=name)
 
 
 @dataclass
@@ -236,13 +240,13 @@ def _check_fits(target: Path, emptied: list[Path], removed: set[Path]) -> None:
     if (outer := next((f for f in emptied if f in target.parents), None)) is not None:
         folders = [outer, *outer.parents]  # emptied first: only the folder itself counts
     elif target.is_dir():
-        raise BackupError(f"can't restore {target}: a folder of that name is in the way")
+        raise BackupError("folder_in_the_way", path=target)
     for folder in folders:
         if folder in removed:
             continue
         if folder.exists():
             if not folder.is_dir():
-                raise BackupError(f"can't restore {target}: {folder} is a file, not a folder")
+                raise BackupError("file_in_the_way", path=target, folder=folder)
             return
 
 
@@ -255,7 +259,10 @@ def _plan(
 ) -> _Plan:
     """Check every path and scene collection the restore will write."""
     infos = {info.filename: info for info in zf.infolist()}
-    members = members_for(list(infos), sel)
+    # Chosen by the names as stored. On Windows, zipfile turns a backslash into "/",
+    # which would make "profiles/a\b/x" (from a Linux profile "a\b") a file of "a".
+    members = members_for([info.orig_filename for info in zf.infolist()], sel)
+    targets = {name: _config_target(config_dir, name) for name in members}
     media, mapping, media_missing = _plan_media(manifest, sel, media_dir, infos)
     scenes: dict[str, str] = {}
     if mapping:
@@ -263,16 +270,18 @@ def _plan(
         scenes = {
             name: _rewritten_scene(zf, name, mapping) for name in members if name in scene_members
         }
-    targets = {name: _config_target(config_dir, name) for name in members}
 
     # A profile or the browser data replaces what is there only if the backup holds
     # all of it. Files that could not be read when the backup was made would be
     # lost otherwise; instead, the backup's files are restored over the current ones.
+    # A backup made by an older version doesn't say which files it lacks: nothing
+    # of it counts as complete, so restoring it removes no files.
     rels = [name[len(CONFIG_PREFIX) :] for name in members]
+    skipped = manifest.skipped
     complete = {
         folder
         for folder in (*(f"{_PROFILES}/{d}" for d in sel.profiles), _BROWSER)
-        if _holds(rels, folder) and not _holds(manifest.skipped, folder)
+        if skipped is not None and _holds(rels, folder) and not _holds(skipped, folder)
     }
     emptied = [
         safe_target(config_dir / obs_config.PROFILES_DIR, d)
@@ -292,7 +301,7 @@ def _plan(
         stale=stale,
         media=media,
         media_missing=media_missing,
-        kept_current=[rel for rel in manifest.skipped if _is_selected(rel, sel)],
+        kept_current=[rel for rel in skipped or [] if _is_selected(rel, sel)],
     )
 
 

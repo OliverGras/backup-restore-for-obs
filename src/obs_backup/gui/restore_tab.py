@@ -21,13 +21,13 @@ from PySide6.QtWidgets import (
 from obs_backup import backup
 from obs_backup.backup import Progress, RestoreResult
 from obs_backup.gui.constants import BAD_COLOR
-from obs_backup.gui.helpers import preview_list
+from obs_backup.gui.helpers import error_message
 from obs_backup.gui.install_panel import InstallPanel
 from obs_backup.gui.selection_tree import SelectionTree, selection_buttons
 from obs_backup.gui.settings import AppSettings
 from obs_backup.gui.tasks import TaskRunner
 from obs_backup.gui.widgets import FolderEdit
-from obs_backup.i18n import tr
+from obs_backup.i18n import preview_list, tr
 from obs_backup.obs.locator import running_obs_for
 
 
@@ -140,7 +140,7 @@ class RestoreTab(QWidget):
         try:
             m = backup.read_manifest(path)
         except (backup.InvalidBackupError, OSError) as e:
-            self._info.setText(tr("invalid_backup", error=e))
+            self._info.setText(tr("invalid_backup", error=error_message(e)))
             self.update_enabled()
             return
         info = tr(

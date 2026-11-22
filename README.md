@@ -17,7 +17,7 @@ Works on **Windows** and **Linux**. The interface is in **English** and **German
   - Restoring is blocked while OBS is running, because OBS writes its files when it closes and would overwrite the restore.
   - The current state is backed up before every restore. If that backup can't save a file the restore would replace, nothing is restored.
   - You choose which items to restore.
-  - Files that couldn't be read when a backup was made (usually because OBS had them open) are never deleted by restoring that backup.
+  - Files that couldn't be read when a backup was made (usually because OBS had them open) are never deleted by restoring that backup. Backups made by older versions don't record this, so restoring them removes no files.
 - **Plain zip files.** Every backup is a normal `.zip` with a `manifest.json`, so you can open it without this tool.
 
 ## Download

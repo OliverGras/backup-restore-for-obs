@@ -17,21 +17,12 @@ from obs_backup import backup
 from obs_backup.gui.about import show_about
 from obs_backup.gui.backup_tab import BackupTab
 from obs_backup.gui.constants import WINDOW_SIZE
-from obs_backup.gui.helpers import open_folder, preview_list
+from obs_backup.gui.helpers import error_message, open_folder
 from obs_backup.gui.install_panel import InstallPanel
 from obs_backup.gui.restore_tab import RestoreTab
 from obs_backup.gui.settings import AppSettings
 from obs_backup.gui.tasks import LatestCall, TaskRunner
 from obs_backup.i18n import LANGUAGES, current_language, set_language, tr
-
-
-def error_message(error: BaseException) -> str:
-    """The text shown for an error that a backup or restore raised."""
-    if isinstance(error, backup.RestoreFailedError):
-        return tr("restore_failed", error=error.reason, path=error.safety_backup)
-    if isinstance(error, backup.IncompleteSafetyBackupError):
-        return tr("safety_incomplete", count=len(error.skipped), files=preview_list(error.skipped))
-    return tr("error_text", error=str(error) or type(error).__name__)
 
 
 class MainWindow(QMainWindow):
@@ -153,7 +144,10 @@ class MainWindow(QMainWindow):
 
     @Slot(object)
     def _on_task_failed(self, error: BaseException) -> None:
-        QMessageBox.critical(self, tr("error_title"), error_message(error))
+        text = error_message(error)
+        if not isinstance(error, backup.BackupError):  # not expected: say so
+            text = tr("error_text", error=text)
+        QMessageBox.critical(self, tr("error_title"), text)
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 (Qt API)
         if self._tasks.busy:
