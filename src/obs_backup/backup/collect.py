@@ -15,30 +15,62 @@ def walk_files(
     skip_file: Callable[[str], bool] | None = None,
     unreadable: list[Path] | None = None,
 ) -> list[Path]:
-    """All files under ``root`` (or ``root`` itself if it is a file), sorted.
+    """The regular files under ``root`` (or ``root`` itself if it is one), sorted.
 
-    Linked folders inside ``root`` are not followed. Folders that can't be listed
-    are added to ``unreadable``.
+    This decides what a backup holds, and restore relies on it:
+
+    - Folders linked from inside ``root`` (symlinks, and junctions on Windows,
+      which ``os.walk`` would follow) are not entered, so a backup never holds
+      what a linked folder contains. ``root`` itself may be a link.
+    - Only regular files count, or links to them. A link whose target is gone,
+      a socket or a named pipe holds no data to back up and is left out without
+      being counted as unreadable (opening a pipe would wait forever).
+
+    Folders that can't be listed are added to ``unreadable``.
     """
     if root.is_file():
         return [root]
     if not root.is_dir():
         return []
 
-    def note(error: OSError) -> None:
-        if unreadable is not None and error.filename:
-            unreadable.append(Path(error.filename))
+    out: list[Path] = []
 
-    out = []
-    for dirpath, dirnames, filenames in os.walk(root, onerror=note):
-        if skip_dir:
-            dirnames[:] = [d for d in dirnames if not skip_dir(d)]
-        dirnames.sort()
-        for name in sorted(filenames):
-            if skip_file and skip_file(name):
-                continue
-            out.append(Path(dirpath) / name)
+    def walk(folder: Path) -> None:
+        try:
+            with os.scandir(folder) as it:
+                entries = sorted(it, key=lambda e: e.name)
+        except OSError:
+            if unreadable is not None:
+                unreadable.append(folder)
+            return
+        folders = []
+        for entry in entries:
+            if _is_real_folder(entry):
+                if not (skip_dir and skip_dir(entry.name)):
+                    folders.append(entry)
+            elif _is_file(entry) and not (skip_file and skip_file(entry.name)):
+                out.append(folder / entry.name)
+        for entry in folders:
+            walk(folder / entry.name)
+
+    walk(root)
     return out
+
+
+def _is_real_folder(entry: os.DirEntry[str]) -> bool:
+    """A folder that is not a link to one (symlink or junction)."""
+    try:
+        return entry.is_dir(follow_symlinks=False) and not entry.is_junction()
+    except OSError:
+        return False
+
+
+def _is_file(entry: os.DirEntry[str]) -> bool:
+    """A regular file, or a link to one."""
+    try:
+        return entry.is_file()
+    except OSError:
+        return False
 
 
 def _is_browser_cache_dir(name: str) -> bool:

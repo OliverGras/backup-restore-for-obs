@@ -3,6 +3,7 @@
 import contextlib
 import json
 import struct
+import sys
 import zipfile
 from collections.abc import Iterator
 from pathlib import Path
@@ -18,6 +19,24 @@ def write(path: Path, text: str = "x") -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return path
+
+
+def link(path: Path, target: Path) -> Path:
+    """A folder link: a symlink, or on Windows without the rights for one, a junction."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.symlink_to(target, target_is_directory=True)
+    except OSError:
+        if sys.platform != "win32":
+            raise
+        import _winapi
+
+        _winapi.CreateJunction(str(target), str(path))
+    return path
+
+
+def is_link(path: Path) -> bool:
+    return path.is_symlink() or path.is_junction()
 
 
 def everything(cfg: Path, media: bool = True) -> Selection:

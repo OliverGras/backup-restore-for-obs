@@ -2,6 +2,8 @@
 
 import io
 import os
+import socket
+import sys
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -11,7 +13,7 @@ import pytest
 from obs_backup import backup
 from obs_backup.backup import Selection, create
 
-from support import everything, unreadable, write
+from support import everything, link, unreadable, write
 
 
 def test_backup_contents(obs: Path, tmp_path: Path) -> None:
@@ -206,3 +208,76 @@ def test_folder_that_cannot_be_listed_counts_as_skipped(
     result = backup.create_backup(obs, dest, Selection(profiles=["Twitch_Stream"]))
     assert result.skipped == ["basic/profiles/Twitch_Stream/sub/"]
     assert backup.read_manifest(dest).skipped == ["basic/profiles/Twitch_Stream/sub/"]
+
+
+# --- what counts as a file -------------------------------------------------------------
+
+
+def test_linked_folders_inside_are_not_entered(obs: Path, tmp_path: Path) -> None:
+    """Junctions too: os.walk follows them on Windows, and a loop never ends."""
+    profile = obs / "basic/profiles/Twitch_Stream"
+    link(profile / "overlays", write(tmp_path / "elsewhere" / "overlay.png").parent)
+    link(profile / "loop", profile)
+    dest = tmp_path / "b.zip"
+    result = backup.create_backup(obs, dest, Selection(profiles=["Twitch_Stream"]))
+    assert sorted(zipfile.ZipFile(dest).namelist()) == [
+        "config/basic/profiles/Twitch_Stream/basic.ini",
+        "config/basic/profiles/Twitch_Stream/service.json",
+        "manifest.json",
+    ]
+    assert not result.skipped
+
+
+def test_link_whose_target_is_gone_is_left_out(obs: Path, tmp_path: Path) -> None:
+    """Not counted as unreadable: it holds nothing, and would block every safety backup."""
+    gone = tmp_path / "gone"
+    gone.mkdir()
+    link(obs / "plugin_config/obs-browser/SingletonSocket", gone)
+    gone.rmdir()
+    dest = tmp_path / "b.zip"
+    result = backup.create_backup(obs, dest, Selection(browser_data=True))
+    assert not any("Singleton" in n for n in zipfile.ZipFile(dest).namelist())
+    assert not result.skipped
+    assert backup.read_manifest(dest).skipped == []
+
+
+def test_socket_is_left_out(obs: Path, tmp_path: Path) -> None:
+    if sys.platform == "win32":
+        pytest.skip("POSIX sockets")
+    with socket.socket(socket.AF_UNIX) as s:
+        s.bind(str(obs / "plugin_config/obs-websocket/sock"))
+        dest = tmp_path / "b.zip"
+        result = backup.create_backup(obs, dest, Selection(plugin_config=True))
+    assert "config/plugin_config/obs-websocket/sock" not in zipfile.ZipFile(dest).namelist()
+    assert not result.skipped
+
+
+def test_named_pipe_is_left_out(obs: Path, tmp_path: Path) -> None:
+    """Opening a pipe nobody writes to would wait forever."""
+    if sys.platform == "win32":
+        pytest.skip("named pipes in the file system")
+    os.mkfifo(obs / "plugin_config/obs-websocket/pipe")
+    dest = tmp_path / "b.zip"
+    result = backup.create_backup(obs, dest, Selection(plugin_config=True))
+    assert "config/plugin_config/obs-websocket/pipe" not in zipfile.ZipFile(dest).namelist()
+    assert not result.skipped
+
+
+def test_file_name_that_is_not_utf8_is_skipped(obs: Path, tmp_path: Path) -> None:
+    """Linux allows any bytes in a name; zip can only store UTF-8 names."""
+    # How Python names the Linux file b"caf\xe9.ini"; Windows accepts the same name.
+    name = os.fsdecode(b"caf\xe9.ini") if os.name != "nt" else "caf\udce9.ini"
+    try:
+        write(obs / "plugin_config/obs-websocket" / name)
+    except OSError, UnicodeError:
+        pytest.skip("this file system refuses the name")
+    dest = tmp_path / "b.zip"
+    seen: list[str] = []
+    result = backup.create_backup(
+        obs, dest, Selection(plugin_config=True), lambda d, t, cur: seen.append(cur)
+    )
+    shown = "plugin_config/obs-websocket/caf�.ini"
+    assert result.skipped == [shown]
+    assert backup.read_manifest(dest).skipped == [shown]
+    assert "config/plugin_config/obs-websocket/config.json" in zipfile.ZipFile(dest).namelist()
+    "".join(seen).encode("utf-8")  # the window can show every progress text

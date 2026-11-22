@@ -4,7 +4,6 @@ import errno
 import json
 import os
 import shutil
-import sys
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -15,7 +14,16 @@ from obs_backup import backup
 from obs_backup.backup import Selection
 from obs_backup.backup.restore import safe_target
 
-from support import corrupt_member, craft_backup, everything, replace_member, unreadable, write
+from support import (
+    corrupt_member,
+    craft_backup,
+    everything,
+    is_link,
+    link,
+    replace_member,
+    unreadable,
+    write,
+)
 
 
 def test_restore_to_new_machine_remaps_missing_media(
@@ -204,47 +212,31 @@ def test_media_name_windows_refuses_is_changed(tmp_path: Path) -> None:
 # --- folders the user linked elsewhere -------------------------------------------------
 
 
-def _link(link: Path, target: Path) -> None:
-    """A symlink, or on Windows without the rights for one, a junction."""
-    try:
-        link.symlink_to(target, target_is_directory=True)
-    except OSError:
-        if sys.platform != "win32":
-            raise
-        import _winapi
-
-        _winapi.CreateJunction(str(target), str(link))
-
-
-def _is_link(path: Path) -> bool:
-    return path.is_symlink() or path.is_junction()
-
-
 def test_restore_into_linked_scenes_folder(obs: Path, tmp_path: Path) -> None:
     synced = tmp_path / "synced scenes"
     shutil.move(obs / "basic/scenes", synced)
-    _link(obs / "basic/scenes", synced)
+    link(obs / "basic/scenes", synced)
     dest = tmp_path / "b.zip"
     sel = Selection(scene_collections=["Other.json"])
     backup.create_backup(obs, dest, sel)
     write(synced / "Other.json", "changed")
 
     backup.restore_backup(dest, obs, sel)
-    assert _is_link(obs / "basic/scenes")
+    assert is_link(obs / "basic/scenes")
     assert json.loads((synced / "Other.json").read_text())["name"] == "Other"
 
 
 def test_restore_into_linked_profile_folder(obs: Path, tmp_path: Path) -> None:
     synced = tmp_path / "synced profile"
     shutil.move(obs / "basic/profiles/Twitch_Stream", synced)
-    _link(obs / "basic/profiles/Twitch_Stream", synced)
+    link(obs / "basic/profiles/Twitch_Stream", synced)
     dest = tmp_path / "b.zip"
     sel = Selection(profiles=["Twitch_Stream"])
     backup.create_backup(obs, dest, sel)
     write(synced / "stale.ini")
 
     backup.restore_backup(dest, obs, sel)
-    assert _is_link(obs / "basic/profiles/Twitch_Stream")
+    assert is_link(obs / "basic/profiles/Twitch_Stream")
     assert sorted(p.name for p in synced.iterdir()) == ["basic.ini", "service.json"]
 
 
@@ -445,6 +437,22 @@ def test_incomplete_safety_backup_stops_the_restore(
     assert info.value.skipped == ["user.ini"]
     assert {f: (obs / f).read_bytes() for f in _files(obs)} == before
     assert list(safety_dir.iterdir()) == []  # the incomplete safety backup is removed
+
+
+def test_link_whose_target_is_gone_does_not_stop_the_restore(obs: Path, tmp_path: Path) -> None:
+    """Such a link (Chromium leaves some after a crash) holds nothing to lose."""
+    dest = tmp_path / "b.zip"
+    sel = Selection(profiles=["Twitch_Stream"], browser_data=True)
+    backup.create_backup(obs, dest, sel)
+    gone = tmp_path / "gone"
+    gone.mkdir()
+    link(obs / "plugin_config/obs-browser/SingletonCookie", gone)
+    link(obs / "basic/profiles/Twitch_Stream/old", gone)
+    gone.rmdir()
+
+    result = backup.restore_with_safety_backup(dest, obs, sel, safety_dir=tmp_path / "safety")
+    assert result.safety_backup is not None and result.safety_backup.is_file()
+    assert (obs / "basic/profiles/Twitch_Stream/service.json").is_file()
 
 
 def test_unreadable_file_the_restore_leaves_alone_does_not_stop_it(
@@ -661,14 +669,18 @@ def test_profile_with_a_folder_that_could_not_be_listed_keeps_it(
 def test_linked_folder_inside_a_profile_survives_the_restore(obs: Path, tmp_path: Path) -> None:
     elsewhere = tmp_path / "overlays"
     write(elsewhere / "overlay.png", "PNG")
-    _link(obs / "basic/profiles/Twitch_Stream/overlays", elsewhere)
+    link(obs / "basic/profiles/Twitch_Stream/overlays", elsewhere)
     dest = tmp_path / "b.zip"
     sel = Selection(profiles=["Twitch_Stream"])
     backup.create_backup(obs, dest, sel)
+    # The backup doesn't hold what the link points to (a junction on Windows too),
+    # so the restore doesn't write the old copy back through the link.
+    assert not any("overlays" in n for n in zipfile.ZipFile(dest).namelist())
+    write(elsewhere / "overlay.png", "changed since the backup")
 
     backup.restore_backup(dest, obs, sel)
-    assert _is_link(obs / "basic/profiles/Twitch_Stream/overlays")
-    assert (elsewhere / "overlay.png").read_text() == "PNG"
+    assert is_link(obs / "basic/profiles/Twitch_Stream/overlays")
+    assert (elsewhere / "overlay.png").read_text() == "changed since the backup"
 
 
 def test_link_where_the_backup_has_a_file_stops_before_any_change(
@@ -680,13 +692,13 @@ def test_link_where_the_backup_has_a_file_stops_before_any_change(
     sel = Selection(profiles=["Twitch_Stream"], global_settings=True)
     backup.create_backup(obs, dest, sel)
     (profile / "overlays").unlink()
-    _link(profile / "overlays", write(tmp_path / "elsewhere" / "overlay.png").parent)
+    link(profile / "overlays", write(tmp_path / "elsewhere" / "overlay.png").parent)
     write(obs / "global.ini", "changed")
 
     with pytest.raises(backup.BackupError, match="in the way"):
         backup.restore_backup(dest, obs, sel)
     assert (obs / "global.ini").read_text() == "changed"
-    assert _is_link(profile / "overlays")
+    assert is_link(profile / "overlays")
 
 
 @pytest.mark.skipif(os.name == "nt", reason="C:/... is absolute on Windows")

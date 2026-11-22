@@ -70,9 +70,24 @@ class _Unreadable(Exception):
     """
 
 
+def _printable(name: str) -> str:
+    """``name`` with the bytes of a non-UTF-8 file name (Linux) shown as "�".
+
+    Python keeps such bytes as lone surrogates, which neither the manifest nor
+    the user interface can hold.
+    """
+    return name.encode("utf-8", "surrogateescape").decode("utf-8", "replace")
+
+
 def _member_info(
     zf: zipfile.ZipFile, path: Path, arcname: str, compression: int
 ) -> zipfile.ZipInfo:
+    try:
+        # Zip stores names as UTF-8; a name that has none can't be stored, and
+        # would otherwise end the whole backup while the member is written.
+        arcname.encode("utf-8")
+    except UnicodeEncodeError as e:
+        raise _Unreadable from e
     try:
         info = zipfile.ZipInfo.from_file(path, arcname, strict_timestamps=False)
     except OSError as e:
@@ -192,16 +207,18 @@ def create_backup(
     try:
         with zf:
             # A folder that can't be listed counts as skipped, written with a "/".
-            skipped_config = [f"{d.relative_to(config_dir).as_posix()}/" for d in unreadable]
+            skipped_config = [
+                _printable(f"{d.relative_to(config_dir).as_posix()}/") for d in unreadable
+            ]
             for path in files:
                 rel = path.relative_to(config_dir).as_posix()
                 if progress:
-                    progress(done, total, rel)
+                    progress(done, total, _printable(rel))
                 try:
                     result.total_bytes += _add_complete_file(zf, path, CONFIG_PREFIX + rel)
                     result.files += 1
                 except _Unreadable:
-                    skipped_config.append(rel)
+                    skipped_config.append(_printable(rel))
                 done += 1
 
             written_media: list[MediaRef] = []
@@ -216,7 +233,7 @@ def create_backup(
                     result.files += 1
                     result.total_bytes += ref.size
                 except _Unreadable:
-                    skipped_media.append(ref.original)
+                    skipped_media.append(_printable(ref.original))
                 done += 1
 
             manifest = _manifest(config_dir, sel, written_media, skipped_config)
