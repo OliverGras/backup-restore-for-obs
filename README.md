@@ -33,6 +33,29 @@ Each release also has a `SHA256SUMS.txt` for checking the downloads.
 
 The apps are built by GitHub Actions from the source code in this repository ([release workflow](.github/workflows/release.yml)), but they are not code-signed yet. Windows SmartScreen may therefore warn you the first time: click “More info” → “Run anyway”.
 
+### Running on Linux
+
+The archive holds a single program file. Unpack it and start it:
+
+```bash
+tar -xzf Backup-Restore-for-OBS-linux.tar.gz
+./Backup-Restore-for-OBS
+```
+
+You can also start it by double-clicking it in your file manager. To start it from anywhere in a terminal, move it to a folder on your `PATH`, for example `~/.local/bin`.
+
+The app is built on Ubuntu 22.04 and needs glibc 2.35 or newer: Ubuntu 22.04+, Linux Mint 21+, Debian 12+, Fedora 36+ and current Arch all work. On older systems, [run it from source](#run-from-source).
+
+If it doesn't start and the terminal says `Could not load the Qt platform plugin "xcb"`, install the missing library:
+
+| Distribution    | Command                              |
+|-----------------|--------------------------------------|
+| Ubuntu / Debian | `sudo apt install libxcb-cursor0`    |
+| Fedora          | `sudo dnf install xcb-util-cursor`   |
+| Arch            | `sudo pacman -S xcb-util-cursor`     |
+
+It finds OBS installed from your distribution's packages, as Flatpak or as Snap.
+
 To uninstall, delete the app. Its settings are stored in the registry under `HKEY_CURRENT_USER\Software\Backup & Restore for OBS` (Windows) or in `~/.config/Backup & Restore for OBS/` (Linux). Your backups stay where you saved them.
 
 ## Usage
@@ -76,6 +99,33 @@ obs-backup_2026-11-22_09-36-10.zip
 └── media/0001_logo.png    optional media copies
 ```
 
+## FAQ
+
+### After restoring on another PC, OBS says an encoder is missing
+
+For example: *“The following configured encoders are missing: obs_nvenc_av1_tex, ffmpeg_nvenc. Module "obs-nvenc" was not loaded.”*
+
+The restored profile uses a **hardware encoder** of the graphics card in the old PC, here NVIDIA NVENC. The new PC has different graphics hardware, or no driver for it, so OBS can't use that encoder. The backup is fine; only the encoder choice doesn't fit the new PC.
+
+To fix it, click OK, open **Settings → Output** in OBS and choose an encoder that this PC has, for streaming and for recording:
+
+- **x264**: works on every PC, but uses the CPU.
+- **NVIDIA NVENC**, **AMD AMF**, **Intel Quick Sync** or, on Linux, **VA-API**: if the PC has that graphics hardware.
+
+Then click OK. OBS saves the profile and stops showing the message. Your other output settings, such as bitrate and resolution, stay as they were. After a restore, Backup & Restore for OBS lists the profiles that use a hardware encoder.
+
+### Some sources show no image after restoring on another PC
+
+Their media files are missing on the new PC. Include media files when you make the backup, and keep “Restore missing media files” ticked when you restore. After the restore, the app lists media files that are missing and not in the backup; point those sources to the files in OBS. Folders used by slideshow sources are not copied.
+
+### A plugin is missing after restoring
+
+Plugins are programs, not settings, and are installed separately. Only their settings, and on Linux the plugins in your user plugin folder, are in the backup. Install the plugins on the new PC, and their restored settings are used.
+
+### Can I move my setup from Windows to Linux, or the other way round?
+
+Yes. Profiles, scene collections and settings work on both. Media files are restored to a folder you choose, and the scene collections are changed to point there. Hardware encoders and plugins may differ between the systems, see above.
+
 ## Privacy
 
 Backup & Restore for OBS does not send any information to other networked systems unless the user specifically requests it. It works only with files on your computer. It has no telemetry, no update check and no accounts.
@@ -111,7 +161,7 @@ Build a standalone app (output in `dist/`):
 uv run python packaging/build.py
 ```
 
-To release, set the version in [`src/obs_backup/__init__.py`](src/obs_backup/__init__.py), commit, then push a tag with the same version (`git tag 1.0.0 && git push origin 1.0.0`). GitHub Actions builds the apps for all three systems and creates a draft release with them.
+To release, set the version in [`src/obs_backup/__init__.py`](src/obs_backup/__init__.py), commit, then push a tag with the same version (`git tag 1.0.0 && git push origin 1.0.0`). GitHub Actions builds the apps for Windows and Linux and creates a draft release with them.
 
 ## Project layout
 

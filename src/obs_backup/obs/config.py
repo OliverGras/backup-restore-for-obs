@@ -122,6 +122,52 @@ def list_profiles(config_dir: Path) -> list[Profile]:
     return profiles
 
 
+# Encoders that need particular graphics hardware, matched by part of the encoder id
+# a profile stores (OBS has used several ids per vendor: "nvenc", "jim_nvenc",
+# "obs_nvenc_av1_tex", "ffmpeg_nvenc", "h264_texture_amf", "obs_qsv11", ...).
+HARDWARE_ENCODERS = (
+    ("nvenc", "NVIDIA NVENC"),
+    ("amf", "AMD AMF"),
+    ("amd", "AMD AMF"),
+    ("qsv", "Intel Quick Sync"),
+    ("vaapi", "VA-API"),
+    ("apple", "Apple VideoToolbox"),
+)
+
+
+def _hardware_vendor(encoder: str) -> str | None:
+    encoder = encoder.lower()
+    return next((vendor for part, vendor in HARDWARE_ENCODERS if part in encoder), None)
+
+
+def profile_encoders(profile_dir: Path) -> list[str]:
+    """The encoder ids a profile uses for streaming and recording, from its basic.ini.
+
+    Only the encoders of the output mode the profile is set to; a recording that
+    uses the stream encoder adds none of its own. Encoders not set are left out:
+    OBS then picks one itself.
+    """
+    ini = read_ini(profile_dir / "basic.ini")
+    if ini.get("Output", "Mode", fallback="Simple") == "Advanced":
+        ids = [ini.get("AdvOut", "Encoder", fallback="")]
+        if ini.get("AdvOut", "RecType", fallback="Standard") == "Standard":
+            ids.append(ini.get("AdvOut", "RecEncoder", fallback="none"))
+    else:
+        ids = [ini.get("SimpleOutput", "StreamEncoder", fallback="")]
+        if ini.get("SimpleOutput", "RecQuality", fallback="Stream") != "Stream":
+            ids.append(ini.get("SimpleOutput", "RecEncoder", fallback=""))
+    return [i for i in ids if i and i != "none"]
+
+
+def hardware_encoders(profile_dir: Path) -> list[str]:
+    """The kinds of hardware encoder a profile uses, e.g. ``["NVIDIA NVENC"]``.
+
+    These only work on a computer with that graphics hardware and its driver.
+    """
+    vendors = (_hardware_vendor(e) for e in profile_encoders(profile_dir))
+    return list(dict.fromkeys(v for v in vendors if v))
+
+
 def scene_collection_name(path: Path) -> str:
     try:
         data = json.loads(path.read_text(encoding="utf-8-sig"))
