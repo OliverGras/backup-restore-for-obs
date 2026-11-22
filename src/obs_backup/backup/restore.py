@@ -92,6 +92,10 @@ def _config_target(config_dir: Path, name: str) -> Path:
     return target
 
 
+def _is_linked_folder(path: Path) -> bool:
+    return path.is_dir() and (path.is_symlink() or path.is_junction())
+
+
 def _empty(folder: Path) -> None:
     """Remove everything in ``folder`` except the folders linked elsewhere.
 
@@ -101,7 +105,7 @@ def _empty(folder: Path) -> None:
     for child in folder.iterdir():
         if not child.is_dir():
             child.unlink()
-        elif not (child.is_symlink() or child.is_junction()):
+        elif not _is_linked_folder(child):
             shutil.rmtree(child)
 
 
@@ -174,7 +178,9 @@ def _plan_media(
         if not set(ref.used_by) & set(sel.scene_collections):
             continue
         try:
-            if Path(ref.original).is_file():
+            # A path from another OS ("C:/x.png" on Linux) is not absolute here, and
+            # would be looked up in the current folder.
+            if (original := Path(ref.original)).is_absolute() and original.is_file():
                 continue  # still where the scene collection expects it
         except OSError, ValueError:
             pass
@@ -237,7 +243,10 @@ def _check_fits(target: Path, emptied: list[Path], removed: set[Path]) -> None:
     (or a file where it needs a folder) doesn't stop the restore halfway.
     """
     folders = target.parents
-    if (outer := next((f for f in emptied if f in target.parents), None)) is not None:
+    outer = next((f for f in emptied if f in target.parents), None)
+    # Emptying a folder keeps the folders linked from it (see _empty), and what is in
+    # them: a target in or at such a link is checked like any other.
+    if outer is not None and not _is_linked_folder(outer / target.relative_to(outer).parts[0]):
         folders = [outer, *outer.parents]  # emptied first: only the folder itself counts
     elif target.is_dir():
         raise BackupError("folder_in_the_way", path=target)

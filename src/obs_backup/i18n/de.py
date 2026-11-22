@@ -88,7 +88,7 @@ STRINGS: dict[str, str] = {
     # Restore tab
     "backup_file_label": "Backup:",
     "choose_backup_file": "Backup-Datei wählen",
-    "backup_filter": "OBS-Backups (*.zip)",
+    "backup_filter": "OBS-Backups (*.zip *.ZIP)",
     "no_backups": "Noch keine Backups im Backup-Ordner. Mit „Durchsuchen…“ eins öffnen.",
     "backup_info": "Erstellt {created} unter {os} · OBS {obs} · {media} Mediendateien",
     "unknown": "unbekannt",

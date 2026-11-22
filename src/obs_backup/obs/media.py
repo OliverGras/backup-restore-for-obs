@@ -58,7 +58,8 @@ def find_media_files(scene_json: Any) -> list[str]:
         if s in seen or not looks_like_local_path(s):
             continue
         try:
-            if Path(s).is_file():
+            # Absolute here: "C:/x.png" on Linux would be looked up in the current folder.
+            if (path := Path(s)).is_absolute() and path.is_file():
                 seen[s] = None
         except OSError, ValueError:
             continue

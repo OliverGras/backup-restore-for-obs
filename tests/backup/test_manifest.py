@@ -78,7 +78,9 @@ def test_list_backups_skips_file_that_vanished(
     real_glob = Path.glob
     # As if gone.zip was deleted between listing the folder and reading it.
     monkeypatch.setattr(
-        Path, "glob", lambda self, pattern: [*real_glob(self, pattern), self / "gone.zip"]
+        Path,
+        "glob",
+        lambda self, pattern, **kw: [*real_glob(self, pattern, **kw), self / "gone.zip"],
     )
     assert [p.name for p, _ in backup.list_backups(folder)] == ["a.zip"]
 
@@ -162,3 +164,9 @@ def test_creatable_name(
 @pytest.mark.skipif(os.name != "nt", reason="drive-relative paths exist only on Windows")
 def test_drive_relative_name_is_not_plain() -> None:
     assert not is_plain_name("C:evil")
+
+
+def test_list_backups_finds_upper_case_extension(obs: Path, tmp_path: Path) -> None:
+    folder = tmp_path / "backups"
+    backup.create_backup(obs, folder / "OLD.ZIP", Selection(global_settings=True))
+    assert [p.name for p, _ in backup.list_backups(folder)] == ["OLD.ZIP"]

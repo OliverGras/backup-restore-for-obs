@@ -206,7 +206,7 @@ def list_backups(folder: Path) -> list[tuple[Path, Manifest]]:
     if not folder.is_dir():
         return []
     found = []
-    for f in folder.glob("*.zip"):
+    for f in folder.glob("*.zip", case_sensitive=False):  # also .ZIP on Linux
         try:  # stat() too: a file can vanish meanwhile, or be a broken link
             found.append((f.stat().st_mtime, f, read_manifest(f)))
         except InvalidBackupError, OSError:

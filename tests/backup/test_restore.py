@@ -669,3 +669,55 @@ def test_linked_folder_inside_a_profile_survives_the_restore(obs: Path, tmp_path
     backup.restore_backup(dest, obs, sel)
     assert _is_link(obs / "basic/profiles/Twitch_Stream/overlays")
     assert (elsewhere / "overlay.png").read_text() == "PNG"
+
+
+def test_link_where_the_backup_has_a_file_stops_before_any_change(
+    obs: Path, tmp_path: Path
+) -> None:
+    profile = obs / "basic/profiles/Twitch_Stream"
+    write(profile / "overlays", "a file when the backup was made")
+    dest = tmp_path / "b.zip"
+    sel = Selection(profiles=["Twitch_Stream"], global_settings=True)
+    backup.create_backup(obs, dest, sel)
+    (profile / "overlays").unlink()
+    _link(profile / "overlays", write(tmp_path / "elsewhere" / "overlay.png").parent)
+    write(obs / "global.ini", "changed")
+
+    with pytest.raises(backup.BackupError, match="in the way"):
+        backup.restore_backup(dest, obs, sel)
+    assert (obs / "global.ini").read_text() == "changed"
+    assert _is_link(profile / "overlays")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="C:/... is absolute on Windows")
+def test_windows_media_path_is_not_looked_up_in_the_current_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On Linux, "C:/m/logo.png" is a relative path: it must not count as present."""
+    original = "C:/m/logo.png"
+    zip_path = craft_backup(
+        tmp_path / "windows.zip",
+        {
+            "scene_collections": [{"name": "Main", "file": "Main.json"}],
+            "media": [
+                {
+                    "original": original,
+                    "archive": "media/0001_logo.png",
+                    "size": 3,
+                    "used_by": ["Main.json"],
+                }
+            ],
+        },
+        {
+            "config/basic/scenes/Main.json": json.dumps(
+                {"name": "Main", "sources": [{"settings": {"file": original}}]}
+            ),
+            "media/0001_logo.png": "PNG",
+        },
+    )
+    monkeypatch.chdir(write(tmp_path / "cwd" / original).parents[2])  # cwd/C:/m/logo.png
+    target, media_dir = tmp_path / "new", tmp_path / "restored"
+    sel = Selection(scene_collections=["Main.json"], media=True)
+    result = backup.restore_backup(zip_path, target, sel, media_dir)
+    assert result.media_restored == 1
+    assert _restored_paths(target) == [(media_dir / "logo.png").as_posix()]
