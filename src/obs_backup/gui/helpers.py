@@ -6,6 +6,16 @@ from PySide6.QtCore import QStandardPaths, QUrl
 from PySide6.QtGui import QDesktopServices
 
 
+def absolute_path(text: str) -> Path | None:
+    """``text`` as a path, or None if it is empty or relative.
+
+    A relative path would depend on the folder the app was started from, and OBS
+    can't use relative media paths in scene collections.
+    """
+    path = Path(text.strip())
+    return path if text.strip() and path.is_absolute() else None
+
+
 def documents_dir() -> Path:
     loc = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
     return Path(loc) if loc else Path.home()

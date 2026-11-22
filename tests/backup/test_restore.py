@@ -10,7 +10,7 @@ from obs_backup import backup
 from obs_backup.backup import Selection
 from obs_backup.backup.restore import safe_target
 
-from support import craft_backup, everything, replace_member, write
+from support import corrupt_member, craft_backup, everything, replace_member, write
 
 
 def test_restore_to_new_machine_remaps_missing_media(
@@ -117,10 +117,27 @@ def test_crafted_profile_name_cannot_delete_config(obs: Path, tmp_path: Path, ba
 
 
 def test_safe_target_refuses_the_folder_itself(tmp_path: Path) -> None:
-    for rel in (".", "", "a/.."):
+    for rel in (".", "", "a/..", "a/../b", "a//b", "./a"):
         with pytest.raises(backup.InvalidBackupError):
             safe_target(tmp_path, rel)
     assert safe_target(tmp_path, "a/b") == (tmp_path / "a" / "b").resolve()
+
+
+def test_member_cannot_climb_into_unselected_parts(obs: Path, tmp_path: Path) -> None:
+    """A path that stays inside the config folder but leaves the selected profile."""
+    zip_path = craft_backup(
+        tmp_path / "evil.zip",
+        {"profiles": [{"name": "Twitch Stream", "dir": "Twitch_Stream"}]},
+        {
+            "config/basic/profiles/Twitch_Stream/basic.ini": "[General]\n",
+            "config/basic/profiles/Twitch_Stream/../../../plugins/evil.so": "x",
+        },
+    )
+    before = _files(obs)
+    with pytest.raises(backup.InvalidBackupError):
+        backup.restore_backup(zip_path, obs, Selection(profiles=["Twitch_Stream"]))
+    assert _files(obs) == before
+    assert not (obs / "plugins").exists()
 
 
 # --- nothing changes when the backup turns out to be bad ------------------------------
@@ -141,6 +158,31 @@ def test_damaged_scene_collection_leaves_config_untouched(
         backup.restore_backup(dest, obs, everything(obs), tmp_path / "m")
     assert _files(obs) == before  # profile folder not deleted
     assert not (tmp_path / "m").exists()
+
+
+def test_damaged_member_leaves_config_untouched(obs: Path, tmp_path: Path) -> None:
+    dest = tmp_path / "b.zip"
+    sel = Selection(profiles=["Twitch_Stream"], global_settings=True)
+    backup.create_backup(obs, dest, sel)
+    corrupt_member(dest, "config/global.ini")  # after the profile in the backup
+    write(obs / "basic/profiles/Twitch_Stream/added-later.ini")
+    before = {f: (obs / f).read_bytes() for f in _files(obs)}
+
+    with pytest.raises(backup.InvalidBackupError, match="global.ini"):
+        backup.restore_backup(dest, obs, sel)
+    assert {f: (obs / f).read_bytes() for f in _files(obs)} == before
+    assert not list(obs.glob(".restore-*"))  # temporary folder removed
+
+    with pytest.raises(backup.InvalidBackupError):
+        backup.restore_backup(dest, tmp_path / "new", sel)
+    assert not (tmp_path / "new").exists()  # not left behind, empty
+
+
+def test_restore_leaves_no_temporary_folder(obs: Path, tmp_path: Path) -> None:
+    dest = tmp_path / "b.zip"
+    backup.create_backup(obs, dest, everything(obs, media=False))
+    backup.restore_backup(dest, obs, everything(obs, media=False))
+    assert not list(obs.glob(".restore-*"))
 
 
 def test_unsafe_member_leaves_profiles_untouched(obs: Path, tmp_path: Path) -> None:

@@ -1,6 +1,7 @@
 """Helpers shared by the tests (importable because pytest adds tests/ to the path)."""
 
 import json
+import struct
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,17 @@ def craft_backup(
         for name, text in (members or {}).items():
             zf.writestr(name, text)
     return path
+
+
+def corrupt_member(zip_path: Path, name: str) -> None:
+    """Flip a byte in the stored data of one member, as a damaged download would."""
+    with zipfile.ZipFile(zip_path) as zf:
+        info = zf.getinfo(name)
+    data = bytearray(zip_path.read_bytes())
+    # Local file header: 30 bytes, then the file name and the extra field.
+    name_len, extra_len = struct.unpack_from("<HH", data, info.header_offset + 26)
+    data[info.header_offset + 30 + name_len + extra_len + info.compress_size // 2] ^= 0xFF
+    zip_path.write_bytes(data)
 
 
 def replace_member(zip_path: Path, name: str, text: str) -> None:

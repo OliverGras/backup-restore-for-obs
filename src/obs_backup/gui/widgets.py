@@ -5,13 +5,17 @@ from pathlib import Path
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QLineEdit, QPushButton, QWidget
 
+from obs_backup.gui.helpers import absolute_path
 from obs_backup.i18n import tr
 
 
 class FolderEdit(QWidget):
-    """A folder path with a “Browse…” button. Emits ``changed`` when the user edits it."""
+    """A folder path with a “Browse…” button. Emits ``changed`` when the user edits it.
 
-    changed = Signal(Path)
+    ``path()`` and ``changed`` give None when the field is empty or relative.
+    """
+
+    changed = Signal(object)  # Path | None
 
     def __init__(self, path: Path, dialog_title: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -25,8 +29,8 @@ class FolderEdit(QWidget):
         layout.addWidget(self._edit, 1)
         layout.addWidget(browse)
 
-    def path(self) -> Path:
-        return Path(self._edit.text())
+    def path(self) -> Path | None:
+        return absolute_path(self._edit.text())
 
     def set_path(self, path: Path) -> None:
         self._edit.setText(str(path))

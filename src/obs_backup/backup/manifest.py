@@ -2,12 +2,11 @@
 
 import json
 import zipfile
-import zlib
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, TypedDict
 
-from obs_backup.backup.errors import InvalidBackupError
+from obs_backup.backup.errors import ZIP_ERRORS, InvalidBackupError
 from obs_backup.backup.layout import FORMAT, FORMAT_VERSION, MANIFEST, MEDIA_PREFIX, is_plain_name
 from obs_backup.backup.models import MediaRef
 
@@ -150,8 +149,7 @@ def read_manifest(path: Path) -> Manifest:
         ) from e
     except UnicodeDecodeError as e:
         raise InvalidBackupError(f"manifest.json is not valid UTF-8: {e}") from e
-    # Damaged data, unsupported compression, or encryption (RuntimeError).
-    except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError) as e:
+    except ZIP_ERRORS as e:
         raise InvalidBackupError(f"not a valid zip file: {e}") from e
     return Manifest.from_json(text)
 

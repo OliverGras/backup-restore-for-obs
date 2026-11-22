@@ -1,6 +1,12 @@
 """Errors raised while creating or restoring backups."""
 
+import zipfile
+import zlib
 from pathlib import Path
+
+# Raised while reading a zip member that is damaged (bad data or CRC, truncated),
+# uses unsupported compression, or is encrypted (RuntimeError).
+ZIP_ERRORS = (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError)
 
 
 class BackupError(Exception):

@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import QSettings
 
 from obs_backup.gui.constants import APP, ORG
-from obs_backup.gui.helpers import documents_dir
+from obs_backup.gui.helpers import absolute_path, documents_dir
 
 
 class AppSettings:
@@ -25,18 +25,19 @@ class AppSettings:
         return value if isinstance(value, str) else ""
 
     def _path(self, key: str) -> Path | None:
-        value = self._str(key)
-        return Path(value) if value else None
+        # Relative values (such as "." saved by older versions) count as unset.
+        return absolute_path(self._str(key))
 
     def _set_path(self, key: str, path: Path | None) -> None:
-        self._qs.setValue(key, str(path) if path else "")
+        self._qs.setValue(key, "" if path is None else str(path))
 
     @property
     def backup_dir(self) -> Path:
         return self._path("backup_dir") or documents_dir() / "OBS Backups"
 
     @backup_dir.setter
-    def backup_dir(self, path: Path) -> None:
+    def backup_dir(self, path: Path | None) -> None:
+        """None (or a relative path) means the default folder."""
         self._set_path("backup_dir", path)
 
     @property
@@ -44,7 +45,8 @@ class AppSettings:
         return self._path("media_dir") or documents_dir() / "OBS Media"
 
     @media_dir.setter
-    def media_dir(self, path: Path) -> None:
+    def media_dir(self, path: Path | None) -> None:
+        """None (or a relative path) means the default folder."""
         self._set_path("media_dir", path)
 
     @property

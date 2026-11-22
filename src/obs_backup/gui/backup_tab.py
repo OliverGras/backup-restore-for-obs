@@ -104,8 +104,10 @@ class BackupTab(QWidget):
         size = format_size(sum(r.size for r in refs))
         self._media_label.setText(tr("media_summary", count=len(refs), size=size))
 
-    def _on_dir_changed(self, path: Path) -> None:
+    def _on_dir_changed(self, path: Path | None) -> None:
         self._settings.backup_dir = path
+        # An empty or relative entry falls back to the default folder; show which.
+        self._dir_edit.set_path(self._settings.backup_dir)
         self.backup_dir_changed.emit()
 
     def _start_backup(self) -> None:

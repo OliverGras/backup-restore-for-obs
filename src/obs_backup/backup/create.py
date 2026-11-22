@@ -1,6 +1,8 @@
 """Create a backup file."""
 
 import os
+import shutil
+import tempfile
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -21,6 +23,10 @@ STORED_SUFFIXES = frozenset({
     ".opus", ".flac", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".zip", ".7z",
 })  # fmt: skip
 
+# Config files up to this size are read into memory before they are added to the
+# backup; larger ones (plugins, browser data) go through a temporary file.
+SPOOL_IN_MEMORY = 32 << 20
+
 
 def default_backup_name(suffix: str = "") -> str:
     stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -31,6 +37,26 @@ def _compression(path: str) -> int:
     if Path(path).suffix.lower() in STORED_SUFFIXES:
         return zipfile.ZIP_STORED
     return zipfile.ZIP_DEFLATED
+
+
+def _add_complete_file(zf: zipfile.ZipFile, path: Path, arcname: str) -> int:
+    """Add the file at ``path`` as ``arcname`` and return its size.
+
+    The file is read completely before the member is started: ``ZipFile.write``
+    would leave a truncated member behind if reading failed halfway (a file OBS
+    holds locked), and a restore would then write that truncated file.
+    """
+    info = zipfile.ZipInfo.from_file(path, arcname, strict_timestamps=False)
+    info.compress_type = zf.compression
+    info.compress_level = zf.compresslevel
+    with tempfile.SpooledTemporaryFile(max_size=SPOOL_IN_MEMORY) as copy:
+        with path.open("rb") as src:
+            shutil.copyfileobj(src, copy)
+        size = copy.tell()
+        copy.seek(0)
+        with zf.open(info, "w") as dst:
+            shutil.copyfileobj(copy, dst)
+    return size
 
 
 def create_backup(
@@ -58,15 +84,18 @@ def create_backup(
     tmp = dest.with_name(dest.name + ".part")
     done = 0
     try:
-        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        # strict_timestamps=False: files dated before 1980 (which zip can't store)
+        # get 1980-01-01 instead of failing the whole backup.
+        with zipfile.ZipFile(
+            tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=6, strict_timestamps=False
+        ) as zf:
             for path in files:
                 rel = path.relative_to(config_dir).as_posix()
                 if progress:
                     progress(done, total, rel)
                 try:
-                    zf.write(path, CONFIG_PREFIX + rel)
+                    result.total_bytes += _add_complete_file(zf, path, CONFIG_PREFIX + rel)
                     result.files += 1
-                    result.total_bytes += path.stat().st_size
                 except OSError:
                     result.skipped.append(rel)
                 done += 1
@@ -76,6 +105,9 @@ def create_backup(
                 ref.archive = f"{MEDIA_PREFIX}{i:04d}_{file_name(ref.original)}"
                 if progress:
                     progress(done, total, ref.original)
+                # Media can be large, so it is not copied first. A file that fails
+                # halfway leaves an unused member: the manifest lists only media
+                # written completely.
                 try:
                     zf.write(ref.original, ref.archive, compress_type=_compression(ref.original))
                     written_media.append(ref)

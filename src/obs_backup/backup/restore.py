@@ -1,14 +1,16 @@
 """Restore a backup file into an OBS config folder."""
 
 import json
+import os
 import shutil
+import tempfile
 import zipfile
 import zlib
 from pathlib import Path
 
 from obs_backup.backup.collect import safety_selection
 from obs_backup.backup.create import create_backup, default_backup_name
-from obs_backup.backup.errors import InvalidBackupError, RestoreFailedError
+from obs_backup.backup.errors import ZIP_ERRORS, InvalidBackupError, RestoreFailedError
 from obs_backup.backup.layout import CONFIG_PREFIX, is_plain_name
 from obs_backup.backup.manifest import Manifest, read_manifest
 from obs_backup.backup.models import MediaRef, Progress, RestoreResult, Selection
@@ -52,7 +54,15 @@ def members_for(names: list[str], sel: Selection) -> list[str]:
 
 
 def safe_target(base: Path, rel: str) -> Path:
-    """``base / rel``, refusing paths that are not inside ``base`` (zip slip)."""
+    """``base / rel``, refusing paths that are not inside ``base`` (zip slip).
+
+    ``..``, ``.`` and empty segments are refused even when the path stays inside
+    ``base``: ``basic/profiles/P/../../../plugins/x`` would otherwise pass as a
+    file of profile ``P`` and land in a part of the folder that was not selected.
+    (``zipfile`` turns backslashes in member names into ``/`` on Windows.)
+    """
+    if any(part in ("", ".", "..") for part in rel.split("/")):
+        raise InvalidBackupError(f"unsafe path in backup: {rel}")
     base = base.resolve()
     target = (base / rel).resolve()
     if base not in target.parents:
@@ -128,9 +138,18 @@ def _plan_media(
 def _rewritten_scene(zf: zipfile.ZipFile, name: str, mapping: dict[str, str]) -> str:
     try:
         data = json.loads(zf.read(name).decode("utf-8-sig"))
-    except ValueError as e:
+    except (ValueError, *ZIP_ERRORS) as e:
         raise InvalidBackupError(f"damaged scene collection in backup: {name}: {e}") from e
     return dump_scene_json(rewrite_paths(data, mapping))
+
+
+def _unpack(zf: zipfile.ZipFile, name: str, dest: Path) -> None:
+    """Write the member ``name`` to ``dest``; reading it checks its CRC."""
+    try:
+        with zf.open(name) as src, dest.open("wb") as dst:
+            shutil.copyfileobj(src, dst)
+    except ZIP_ERRORS as e:
+        raise InvalidBackupError(f"damaged file in backup: {name}: {e}") from e
 
 
 def _check_names(sel: Selection) -> None:
@@ -151,8 +170,9 @@ def restore_backup(
     OBS must not be running: it rewrites its scene collection and profile files
     when it exits and would overwrite the restored files.
 
-    The whole backup is checked before anything is changed, so a damaged or unsafe
-    backup leaves ``config_dir`` as it was.
+    Every selected file is unpacked to a temporary folder inside ``config_dir``
+    (which checks its CRC) before anything is replaced, so a damaged or unsafe
+    backup leaves ``config_dir`` and ``media_dir`` as they were.
 
     Media: a file a restored scene collection uses is left alone if it still
     exists at its original path. Otherwise, if ``sel.media`` is set and the backup
@@ -162,6 +182,9 @@ def restore_backup(
     _check_names(sel)
     manifest = read_manifest(zip_path)
     config_dir = Path(config_dir)
+    if media_dir is not None:
+        # Scene collections need absolute paths; OBS resolves relative ones elsewhere.
+        media_dir = Path(media_dir).absolute()
     result = RestoreResult(files=0)
 
     with zipfile.ZipFile(zip_path) as zf:
@@ -186,37 +209,47 @@ def restore_backup(
         ]
 
         total = len(members) + len(media_jobs)
-        done = 0
+        created = not config_dir.is_dir()
         config_dir.mkdir(parents=True, exist_ok=True)
+        # Inside config_dir, so the unpacked files can be moved into place by renaming.
+        staging = Path(tempfile.mkdtemp(prefix=".restore-", dir=config_dir))
+        try:
+            # 1. Unpack everything; a damaged member stops the restore here.
+            config_files: list[tuple[Path, Path]] = []  # (unpacked, final place)
+            media_files: list[tuple[Path, Path]] = []
+            for n, name in enumerate(members):
+                if progress:
+                    progress(n, total, name[len(CONFIG_PREFIX) :])
+                unpacked = staging / str(n)
+                if name in scenes:
+                    unpacked.write_text(scenes[name], encoding="utf-8")
+                else:
+                    _unpack(zf, name, unpacked)
+                config_files.append((unpacked, targets[name]))
+            for n, (ref, target) in enumerate(media_jobs, len(members)):
+                if progress:
+                    progress(n, total, ref.original)
+                if not target.exists():  # otherwise: the same file, restored before
+                    _unpack(zf, ref.archive, staging / str(n))
+                    media_files.append((staging / str(n), target))
 
-        # Remove profile folders first, so files deleted since the backup don't linger.
-        for target in profile_dirs:
-            if target.is_dir():
-                shutil.rmtree(target)
-
-        for name in members:
-            rel = name[len(CONFIG_PREFIX) :]
-            if progress:
-                progress(done, total, rel)
-            target = targets[name]
-            target.parent.mkdir(parents=True, exist_ok=True)
-            if name in scenes:
-                target.write_text(scenes[name], encoding="utf-8")
-            else:
-                with zf.open(name) as src, open(target, "wb") as dst:
-                    shutil.copyfileobj(src, dst)
-            result.files += 1
-            done += 1
-
-        for ref, target in media_jobs:
-            if progress:
-                progress(done, total, ref.original)
-            if not target.exists():
+            # 2. Replace. Profile folders are removed first, so files deleted
+            # since the backup don't linger.
+            for target in profile_dirs:
+                if target.is_dir():
+                    shutil.rmtree(target)
+            for unpacked, target in config_files:
                 target.parent.mkdir(parents=True, exist_ok=True)
-                with zf.open(ref.archive) as src, open(target, "wb") as dst:
-                    shutil.copyfileobj(src, dst)
-            result.media_restored += 1
-            done += 1
+                os.replace(unpacked, target)
+            for unpacked, target in media_files:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(unpacked, target)  # media_dir may be on another drive
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+            if created and not any(config_dir.iterdir()):
+                config_dir.rmdir()  # nothing restored into a folder made for it
+        result.files = len(config_files)
+        result.media_restored = len(media_jobs)
 
     if progress:
         progress(total, total, "")

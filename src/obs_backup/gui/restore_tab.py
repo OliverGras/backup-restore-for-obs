@@ -95,18 +95,22 @@ class RestoreTab(QWidget):
 
     # ------------------------------------------------------------ choosing a backup
 
+    def selected_backup(self) -> Path | None:
+        # Items hold the path as str: QComboBox.findData can't match Path objects.
+        data = self._combo.currentData()
+        return Path(data) if data else None
+
     def refresh_backups(self, select: Path | None = None) -> None:
         """List the backups in the backup folder; keep or set the selected one."""
-        current = select or self._combo.currentData()
+        current = select or self.selected_backup()
         self._combo.blockSignals(True)
         self._combo.clear()
         for path, _manifest in backup.list_backups(self._settings.backup_dir):
-            self._combo.addItem(path.name, path)
+            self._combo.addItem(path.name, str(path))
         if current is not None:
-            current = Path(current)
-            index = self._combo.findData(current)
+            index = self._combo.findData(str(current))
             if index < 0 and current.is_file():
-                self._combo.insertItem(0, current.name, current)
+                self._combo.insertItem(0, current.name, str(current))
                 index = 0
             self._combo.setCurrentIndex(max(index, 0))
         self._combo.blockSignals(False)
@@ -119,19 +123,21 @@ class RestoreTab(QWidget):
         if file:
             self.refresh_backups(select=Path(file))
 
-    def _on_media_dir_changed(self, path: Path) -> None:
+    def _on_media_dir_changed(self, path: Path | None) -> None:
         self._settings.media_dir = path
+        # An empty or relative entry falls back to the default folder; show which.
+        self._media_dir.set_path(self._settings.media_dir)
 
     def _on_backup_selected(self, *_: object) -> None:
         self._manifest = None
         self._tree.clear()
-        path = self._combo.currentData()
+        path = self.selected_backup()
         if path is None:
             self._info.setText(tr("no_backups"))
             self.update_enabled()
             return
         try:
-            m = backup.read_manifest(Path(path))
+            m = backup.read_manifest(path)
         except (backup.InvalidBackupError, OSError) as e:
             self._info.setText(tr("invalid_backup", error=e))
             self.update_enabled()
@@ -171,8 +177,8 @@ class RestoreTab(QWidget):
 
     def _start_restore(self) -> None:
         cfg = self._install.config_dir
-        path = self._combo.currentData()
-        if cfg is None or path is None or self._manifest is None:
+        zip_path = self.selected_backup()
+        if cfg is None or zip_path is None or self._manifest is None:
             return
         sel = self._tree.selection()
         if sel.is_empty():
@@ -191,9 +197,9 @@ class RestoreTab(QWidget):
             return
 
         sel.media = self._media_check.isChecked() and bool(self._manifest.media)
-        media_dir = self._media_dir.path() if sel.media else None
+        self._on_media_dir_changed(self._media_dir.path())
+        media_dir = self._settings.media_dir if sel.media else None
         safety_dir = self._settings.backup_dir if self._safety_check.isChecked() else None
-        zip_path = Path(path)
 
         def task(progress: Progress) -> RestoreResult:
             return backup.restore_with_safety_backup(
@@ -206,7 +212,7 @@ class RestoreTab(QWidget):
         text = tr("restore_done_text", files=result.files)
         if result.media_restored:
             text += tr(
-                "restore_media_done", count=result.media_restored, dir=self._media_dir.path()
+                "restore_media_done", count=result.media_restored, dir=self._settings.media_dir
             )
         if result.media_missing:
             text += tr(
