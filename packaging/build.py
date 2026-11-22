@@ -2,8 +2,8 @@
 
     uv run python packaging/build.py
 
-Output: dist/Backup-Restore-for-OBS.exe (Windows), dist/Backup & Restore for OBS.app (macOS),
-dist/Backup-Restore-for-OBS (Linux).
+Output: dist/Backup-Restore-for-OBS.exe (Windows) or dist/Backup-Restore-for-OBS (Linux).
+macOS is not supported yet.
 Used locally and by .github/workflows/release.yml.
 """
 
@@ -67,7 +67,8 @@ def main() -> None:
         str(src / "obs_backup" / "__main__.py"),
         "--noconfirm",
         "--windowed",
-        "--name", PRODUCT_NAME if sys.platform == "darwin" else FILE_NAME,
+        "--name", FILE_NAME,
+        "--onefile",
         "--paths", str(src),
         "--add-data", f"{src / 'obs_backup' / 'licenses'}:{licenses}",
         "--add-data", f"{ROOT / 'LICENSE'}:{licenses}",
@@ -78,10 +79,6 @@ def main() -> None:
     ]
     for module in EXCLUDED_MODULES:
         args += ["--exclude-module", module]
-    if sys.platform == "darwin":
-        args += ["--osx-bundle-identifier", "io.github.olivergras.backup-restore-for-obs"]
-    else:
-        args.append("--onefile")
     if sys.platform == "win32":
         args += ["--version-file", str(write_windows_version_info(app_version()))]
     PyInstaller.__main__.run(args + sys.argv[1:])

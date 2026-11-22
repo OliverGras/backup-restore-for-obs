@@ -4,7 +4,6 @@
 | System  | File |
 |---------|------|
 | Windows | `Backup-Restore-for-OBS-windows.exe` – just run it, no installation needed |
-| macOS   | `Backup-Restore-for-OBS-macos.zip` – unzip, then right-click the app → Open the first time |
 | Linux   | `Backup-Restore-for-OBS-linux.tar.gz` – unpack and run `Backup-Restore-for-OBS` |
 
 `SHA256SUMS.txt` lists the checksums of all files.

@@ -2,7 +2,7 @@
 
 A simple tool with a graphical interface to **back up and restore [OBS Studio](https://obsproject.com/)**: profiles, scene collections (scenes and sources), settings, plugin settings and, optionally, the media files your scenes use.
 
-Works on **Windows, macOS and Linux**. The interface is in **English** and **German**.
+Works on **Windows** and **Linux**. The interface is in **English** and **German**. macOS is not supported yet.
 
 > **AI disclosure:** Most of the code was written with an AI coding assistant (Claude Code by Anthropic) and is reviewed by the maintainer. See [AI disclosure](#ai-disclosure).
 
@@ -26,14 +26,13 @@ Get the latest version from the [Releases](../../releases) page. No installation
 | System  | File                                  |
 |---------|---------------------------------------|
 | Windows | `Backup-Restore-for-OBS-windows.exe`  |
-| macOS   | `Backup-Restore-for-OBS-macos.zip`    |
 | Linux   | `Backup-Restore-for-OBS-linux.tar.gz` |
 
 Each release also has a `SHA256SUMS.txt` for checking the downloads.
 
-The apps are built by GitHub Actions from the source code in this repository ([release workflow](.github/workflows/release.yml)), but they are not code-signed yet. Windows SmartScreen may therefore warn you the first time: click “More info” → “Run anyway”. On macOS, right-click the app → “Open” the first time.
+The apps are built by GitHub Actions from the source code in this repository ([release workflow](.github/workflows/release.yml)), but they are not code-signed yet. Windows SmartScreen may therefore warn you the first time: click “More info” → “Run anyway”.
 
-To uninstall, delete the app. Its settings are stored in the registry under `HKEY_CURRENT_USER\Software\Backup & Restore for OBS` (Windows), in a `.plist` file named after Backup & Restore for OBS in `~/Library/Preferences/` (macOS) or in `~/.config/Backup & Restore for OBS/` (Linux). Your backups stay where you saved them.
+To uninstall, delete the app. Its settings are stored in the registry under `HKEY_CURRENT_USER\Software\Backup & Restore for OBS` (Windows) or in `~/.config/Backup & Restore for OBS/` (Linux). Your backups stay where you saved them.
 
 ## Usage
 
@@ -50,7 +49,6 @@ The OBS config folder is in a different place depending on the system:
 | System              | OBS config folder                                         |
 |---------------------|-----------------------------------------------------------|
 | Windows             | `%APPDATA%\obs-studio`                                    |
-| macOS               | `~/Library/Application Support/obs-studio`                |
 | Linux               | `~/.config/obs-studio`                                    |
 | Linux (Flatpak)     | `~/.var/app/com.obsproject.Studio/config/obs-studio`      |
 | Linux (Snap)        | `~/snap/obs-studio/current/.config/obs-studio`            |
@@ -62,7 +60,7 @@ The OBS config folder is in a different place depending on the system:
 | Scene collections          | `basic/scenes/<name>.json` (scenes, sources, filters, transitions) | on |
 | General settings           | `global.ini`, `user.ini`, `plugin_manager/`              | on      |
 | Plugin settings            | `plugin_config/*` except `obs-browser`                   | on      |
-| Installed plugins          | `plugins/` (macOS / Linux user plugin folder)            | on      |
+| Installed plugins          | `plugins/` (Linux user plugin folder)                    | on      |
 | Browser source & dock data | `plugin_config/obs-browser/` without caches (cookies, logins) | off |
 | Media files                | Files the scene collections refer to by absolute path    | off     |
 

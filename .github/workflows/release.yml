@@ -30,8 +30,6 @@ jobs:
         include:
           - os: windows-latest
             asset: Backup-Restore-for-OBS-windows.exe
-          - os: macos-latest
-            asset: Backup-Restore-for-OBS-macos.zip
           - os: ubuntu-22.04
             asset: Backup-Restore-for-OBS-linux.tar.gz
     runs-on: ${{ matrix.os }}
@@ -57,10 +55,6 @@ jobs:
         if: runner.os == 'Windows'
         run: move dist\Backup-Restore-for-OBS.exe ${{ matrix.asset }}
         shell: cmd
-
-      - name: Package (macOS)
-        if: runner.os == 'macOS'
-        run: ditto -c -k --keepParent "dist/Backup & Restore for OBS.app" ${{ matrix.asset }}
 
       - name: Package (Linux)
         if: runner.os == 'Linux'
