@@ -8,24 +8,29 @@ from pathlib import Path
 from typing import Any, Callable
 
 from PySide6.QtCore import QObject, QSettings, QStandardPaths, Qt, QThread, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QAction, QActionGroup, QDesktopServices
+from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QFontDatabase
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
     QMainWindow,
     QMessageBox,
     QProgressBar,
     QPushButton,
     QSizePolicy,
+    QSplitter,
     QStyle,
     QTabWidget,
+    QTextBrowser,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -35,6 +40,7 @@ from PySide6.QtWidgets import (
 from obs_backup import __version__
 from obs_backup import archive
 from obs_backup import obs_config as oc
+from obs_backup.legal import license_documents
 from obs_backup.i18n import LANGUAGES, current_language, format_size, set_language, system_language, tr
 from obs_backup.locator import ObsInstallation, discover, running_obs_for
 
@@ -53,6 +59,46 @@ def documents_dir() -> Path:
 
 def open_folder(path: Path) -> None:
     QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+
+
+class LicensesDialog(QDialog):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(tr("licenses_title"))
+        self.resize(860, 600)
+        self.docs = license_documents()
+        self.list = QListWidget()
+        self.list.addItems([name for name, _ in self.docs])
+        self.text = QTextBrowser()
+        # Only web links open (in the browser); links to repo files mean nothing here.
+        self.text.setOpenLinks(False)
+        self.text.anchorClicked.connect(
+            lambda url: url.scheme() in ("http", "https") and QDesktopServices.openUrl(url))
+        splitter = QSplitter()
+        splitter.addWidget(self.list)
+        splitter.addWidget(self.text)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([240, 620])
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject)
+        lay = QVBoxLayout(self)
+        lay.addWidget(splitter, 1)
+        lay.addWidget(buttons)
+        self.list.currentRowChanged.connect(self.show_doc)
+        self.list.setCurrentRow(0)
+
+    def show_doc(self, row: int) -> None:
+        if 0 <= row < len(self.docs):
+            path = self.docs[row][1]
+            content = path.read_text(encoding="utf-8", errors="replace")
+            if path.suffix == ".md":
+                self.text.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont))
+                self.text.setLineWrapMode(QTextBrowser.LineWrapMode.WidgetWidth)
+                self.text.setMarkdown(content)
+            else:
+                self.text.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
+                self.text.setLineWrapMode(QTextBrowser.LineWrapMode.NoWrap)
+                self.text.setPlainText(content)
 
 
 # ---------------------------------------------------------------- background work
@@ -699,7 +745,16 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(tr("language_changed"), 3000)
 
     def show_about(self) -> None:
-        QMessageBox.about(self, tr("menu_about"), tr("about_text", version=__version__))
+        box = QMessageBox(QMessageBox.Icon.Information, tr("menu_about"),
+                          tr("about_text", version=__version__),
+                          QMessageBox.StandardButton.NoButton, self)
+        box.setTextFormat(Qt.TextFormat.RichText)
+        box.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        licenses_btn = box.addButton(tr("btn_licenses"), QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Ok)
+        box.exec()
+        if box.clickedButton() is licenses_btn:
+            LicensesDialog(self).exec()
 
     def closeEvent(self, event) -> None:  # noqa: N802 – Qt API
         if self.is_busy():

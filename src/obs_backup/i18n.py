@@ -22,7 +22,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "menu_about": "About OBS Backup",
         "about_text": "<b>OBS Backup {version}</b><br>Back up and restore OBS Studio profiles, "
                       "scene collections, sources and settings.<br><br>"
-                      "Open source under the MIT license.",
+                      "Open source under the MIT license. Uses Qt and PySide6 under the GNU LGPL v3; "
+                      "see “Licenses”.<br><br>"
+                      "This program does not send any data over the network.<br><br>"
+                      "Not affiliated with the OBS Project.",
+        "btn_licenses": "Licenses",
+        "licenses_title": "Licenses",
 
         "group_install": "OBS installation",
         "install_label": "Config folder:",
@@ -117,7 +122,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "menu_about": "Über OBS Backup",
         "about_text": "<b>OBS Backup {version}</b><br>Sichern und Wiederherstellen von OBS-Studio-Profilen, "
                       "Szenensammlungen, Quellen und Einstellungen.<br><br>"
-                      "Open Source unter der MIT-Lizenz.",
+                      "Open Source unter der MIT-Lizenz. Verwendet Qt und PySide6 unter der GNU LGPL v3; "
+                      "siehe „Lizenzen“.<br><br>"
+                      "Dieses Programm sendet keine Daten über das Netzwerk.<br><br>"
+                      "Kein offizielles Produkt des OBS-Projekts.",
+        "btn_licenses": "Lizenzen",
+        "licenses_title": "Lizenzen",
 
         "group_install": "OBS-Installation",
         "install_label": "Konfigurationsordner:",

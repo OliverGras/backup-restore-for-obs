@@ -17,7 +17,7 @@ Works on **Windows, macOS and Linux**. The interface is in **English** and **Ger
 
 ## Download
 
-Get the latest version from the [Releases](../../releases) page:
+Get the latest version from the [Releases](../../releases) page. No installation is needed.
 
 | System  | File                       |
 |---------|----------------------------|
@@ -25,7 +25,11 @@ Get the latest version from the [Releases](../../releases) page:
 | macOS   | `OBS-Backup-macos.zip`     |
 | Linux   | `OBS-Backup-linux.tar.gz`  |
 
-> The apps are not code-signed. Windows SmartScreen may ask for confirmation (“More info” → “Run anyway”). On macOS, right-click the app → “Open” the first time.
+Each release also has a `SHA256SUMS.txt` for checking the downloads.
+
+The Windows app is code-signed through the [SignPath Foundation](https://signpath.org/); see the [code signing policy](#code-signing-policy). The macOS app is not signed: right-click it → “Open” the first time.
+
+To uninstall, delete the app. Its settings are stored in the registry under `HKEY_CURRENT_USER\Software\OBS Backup` (Windows), in a `.plist` file named after OBS Backup in `~/Library/Preferences/` (macOS) or in `~/.config/OBS Backup/` (Linux). Your backups stay where you saved them.
 
 ## Usage
 
@@ -69,6 +73,23 @@ obs-backup_2026-11-22_09-36-10.zip
 └── media/0001_logo.png    optional media copies
 ```
 
+## Privacy
+
+OBS Backup does not send any information to other networked systems unless the user specifically requests it. It works only with files on your computer. It has no telemetry, no update check and no accounts.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
+Only files built automatically by GitHub Actions from the source code in this repository are signed ([release workflow](.github/workflows/release.yml)). An approver signs off on every release before it is signed.
+
+| Role | Members |
+|------|---------|
+| Committers and reviewers | [Oliver Gras](../../graphs/contributors) |
+| Approvers | Oliver Gras |
+
+Changes from people outside the team, for example pull requests, are reviewed by a committer before they are merged.
+
 ## Run from source
 
 Requires Python 3.10 or newer.
@@ -83,13 +104,13 @@ python -m obs_backup      # start the app
 pytest                    # run the tests
 ```
 
-Build a standalone app:
+Build a standalone app (output in `dist/`):
 
 ```bash
-pyinstaller --onefile --windowed --name OBS-Backup --paths src src/obs_backup/__main__.py
+python packaging/build.py
 ```
 
-Pushing a tag such as `v0.1.0` builds the apps for all three systems through GitHub Actions and attaches them to a release.
+Pushing a tag such as `v0.1.0` builds the apps for all three systems through GitHub Actions and creates a draft release with them.
 
 ## Project layout
 
@@ -101,7 +122,9 @@ src/obs_backup/
   archive.py     create and restore backup zips
   i18n.py        English and German UI texts
   gui.py         PySide6 interface
-tests/           pytest tests for everything except the GUI
+  licenses/      license texts of the bundled third-party components
+packaging/       build script for the standalone apps
+tests/           pytest tests
 ```
 
 ## Contributing
@@ -110,4 +133,8 @@ Issues and pull requests are welcome. **To add a language**, copy the `"en"` blo
 
 ## License
 
-[MIT](LICENSE). This project is not affiliated with the OBS Project.
+OBS Backup is licensed under the [MIT License](LICENSE).
+
+The ready-to-run apps also contain third-party components under their own licenses. Most notably, they use [Qt](https://www.qt.io/) and [PySide6](https://wiki.qt.io/Qt_for_Python) under the GNU LGPL v3. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the full list, the source code links and the license texts. They can also be read in the app under Help → About OBS Backup → Licenses.
+
+OBS Backup is an independent project. It is not affiliated with or endorsed by the OBS Project. “OBS” and “OBS Studio” are trademarks of the OBS Project.
