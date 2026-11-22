@@ -16,6 +16,8 @@ from obs_backup.gui.main_window import MainWindow  # noqa: E402
 from obs_backup.gui.settings import AppSettings  # noqa: E402
 from obs_backup.i18n import DEFAULT, LANGUAGES, set_language  # noqa: E402
 
+from support import craft_backup  # noqa: E402
+
 
 @pytest.fixture
 def app() -> QApplication:
@@ -61,3 +63,24 @@ def test_switch_language(window: MainWindow, obs: Path, code: str) -> None:
     window.change_language(code)
     assert window.install.config_dir == obs
     assert window.backup_tab._tree.topLevelItemCount() == 5
+
+
+def test_starts_with_damaged_backups_in_the_folder(
+    app: QApplication, settings: AppSettings
+) -> None:
+    craft_backup(settings.backup_dir / "bad.zip", {"format_version": None})
+    craft_backup(settings.backup_dir / "latin1.zip", b'{"format": "obs-backup", "created": "\xe9"}')
+    w = MainWindow(settings)
+    try:
+        assert w.restore_tab._combo.count() == 0
+    finally:
+        w.close()
+
+
+def test_damaged_backup_cannot_be_restored(window: MainWindow, tmp_path: Path) -> None:
+    path = craft_backup(tmp_path / "chosen.zip", {"profiles": [{"name": "no folder"}]})
+    window.restore_tab.refresh_backups(select=path)
+    assert window.restore_tab._combo.currentData() == path
+    assert window.restore_tab._manifest is None
+    assert not window.restore_tab._button.isEnabled()
+    assert window.restore_tab._tree.topLevelItemCount() == 0

@@ -8,9 +8,9 @@
 - ``restore``:  restoring a backup
 """
 
-from obs_backup.backup.collect import collect_files, full_selection, scan_media
+from obs_backup.backup.collect import collect_files, full_selection, safety_selection, scan_media
 from obs_backup.backup.create import create_backup, default_backup_name
-from obs_backup.backup.errors import BackupError, InvalidBackupError
+from obs_backup.backup.errors import BackupError, InvalidBackupError, RestoreFailedError
 from obs_backup.backup.manifest import (
     Manifest,
     ProfileEntry,
@@ -19,7 +19,7 @@ from obs_backup.backup.manifest import (
     read_manifest,
 )
 from obs_backup.backup.models import BackupResult, MediaRef, Progress, RestoreResult, Selection
-from obs_backup.backup.restore import restore_backup
+from obs_backup.backup.restore import restore_backup, restore_with_safety_backup
 
 __all__ = [
     "BackupError",
@@ -29,6 +29,7 @@ __all__ = [
     "MediaRef",
     "ProfileEntry",
     "Progress",
+    "RestoreFailedError",
     "RestoreResult",
     "SceneCollectionEntry",
     "Selection",
@@ -39,5 +40,7 @@ __all__ = [
     "list_backups",
     "read_manifest",
     "restore_backup",
+    "restore_with_safety_backup",
+    "safety_selection",
     "scan_media",
 ]

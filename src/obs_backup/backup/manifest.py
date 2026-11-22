@@ -2,12 +2,13 @@
 
 import json
 import zipfile
+import zlib
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from obs_backup.backup.errors import InvalidBackupError
-from obs_backup.backup.layout import FORMAT, FORMAT_VERSION, MANIFEST
+from obs_backup.backup.layout import FORMAT, FORMAT_VERSION, MANIFEST, MEDIA_PREFIX, is_plain_name
 from obs_backup.backup.models import MediaRef
 
 
@@ -43,47 +44,114 @@ class Manifest:
 
     @classmethod
     def from_json(cls, text: str) -> Manifest:
+        """Parse and check a manifest; anything malformed raises ``InvalidBackupError``.
+
+        A manifest that loads is well-formed: every entry has the expected keys and
+        types, and profile folders and scene collection files are plain names.
+        """
         try:
             data = json.loads(text)
         except ValueError as e:
             raise InvalidBackupError(f"manifest.json is not valid JSON: {e}") from e
         if not isinstance(data, dict) or data.get("format") != FORMAT:
             raise InvalidBackupError("not a Backup & Restore for OBS archive")
-        if int(data.get("format_version", 0)) > FORMAT_VERSION:
+        version = data.get("format_version", FORMAT_VERSION)
+        if not _is_int(version):
+            raise _damaged(f"format_version is {version!r}")
+        if version > FORMAT_VERSION:
             raise InvalidBackupError(
-                f"backup format {data.get('format_version')} is newer than this tool supports "
+                f"backup format {version} is newer than this tool supports "
                 f"({FORMAT_VERSION}); please update Backup & Restore for OBS"
             )
+        obs_version = data.get("obs_version")
+        if obs_version is not None and not isinstance(obs_version, str):
+            raise _damaged(f"obs_version is {obs_version!r}")
+        return cls(
+            created=_text(data, "created"),
+            app_version=_text(data, "app_version"),
+            source_os=_text(data, "source_os"),
+            obs_version=obs_version,
+            config_dir=_text(data, "config_dir"),
+            profiles=[{"name": n, "dir": d} for n, d in _named(data, "profiles", "dir")],
+            scene_collections=[
+                {"name": n, "file": f} for n, f in _named(data, "scene_collections", "file")
+            ],
+            global_settings=bool(data.get("global_settings")),
+            plugin_config=bool(data.get("plugin_config")),
+            browser_data=bool(data.get("browser_data")),
+            plugins=bool(data.get("plugins")),
+            media=_media(data),
+            format_version=version,
+        )
+
+
+def _damaged(detail: str) -> InvalidBackupError:
+    return InvalidBackupError(f"manifest.json is damaged: {detail}")
+
+
+def _is_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _text(data: dict[str, Any], key: str) -> str:
+    value = data.get(key, "")
+    if not isinstance(value, str):
+        raise _damaged(f"{key} is {value!r}")
+    return value
+
+
+def _list(data: dict[str, Any], key: str) -> list[Any]:
+    value = data.get(key, [])
+    if not isinstance(value, list):
+        raise _damaged(f"{key} is not a list")
+    return value
+
+
+def _named(data: dict[str, Any], key: str, name_key: str) -> list[tuple[str, str]]:
+    """``(display name, folder or file name)`` of the profiles or scene collections."""
+    out = []
+    for entry in _list(data, key):
+        value = entry.get(name_key) if isinstance(entry, dict) else None
+        if not isinstance(value, str) or not is_plain_name(value):
+            raise _damaged(f"invalid entry in {key}: {entry!r}")
+        name = entry.get("name")
+        out.append((name if isinstance(name, str) and name else value, value))
+    return out
+
+
+def _media(data: dict[str, Any]) -> list[MediaRef]:
+    refs = []
+    for entry in _list(data, "media"):
         try:
-            return cls(
-                created=data.get("created", ""),
-                app_version=data.get("app_version", ""),
-                source_os=data.get("source_os", ""),
-                obs_version=data.get("obs_version"),
-                config_dir=data.get("config_dir", ""),
-                profiles=list(data.get("profiles", [])),
-                scene_collections=list(data.get("scene_collections", [])),
-                global_settings=bool(data.get("global_settings")),
-                plugin_config=bool(data.get("plugin_config")),
-                browser_data=bool(data.get("browser_data")),
-                plugins=bool(data.get("plugins")),
-                media=[MediaRef(**m) for m in data.get("media", [])],
-                format_version=int(data.get("format_version", FORMAT_VERSION)),
-            )
-        except (TypeError, ValueError) as e:
-            raise InvalidBackupError(f"manifest.json is damaged: {e}") from e
+            ref = MediaRef(**entry)
+        except TypeError as e:
+            raise _damaged(f"invalid media entry {entry!r}") from e
+        if not (
+            isinstance(ref.original, str)
+            and ref.original
+            and isinstance(ref.archive, str)
+            and ref.archive.startswith(MEDIA_PREFIX)
+            and _is_int(ref.size)
+            and isinstance(ref.used_by, list)
+            and all(isinstance(f, str) for f in ref.used_by)
+        ):
+            raise _damaged(f"invalid media entry {entry!r}")
+        refs.append(ref)
+    return refs
 
 
 def read_manifest(path: Path) -> Manifest:
     try:
         with zipfile.ZipFile(path) as zf:
-            try:
-                text = zf.read(MANIFEST).decode("utf-8")
-            except KeyError as e:
-                raise InvalidBackupError(
-                    "manifest.json missing – not a Backup & Restore for OBS archive"
-                ) from e
-    except zipfile.BadZipFile as e:
+            text = zf.read(MANIFEST).decode("utf-8")
+    except KeyError as e:
+        raise InvalidBackupError(
+            "manifest.json missing – not a Backup & Restore for OBS archive"
+        ) from e
+    except UnicodeDecodeError as e:
+        raise InvalidBackupError(f"manifest.json is not valid UTF-8: {e}") from e
+    # Damaged data, unsupported compression, or encryption (RuntimeError).
+    except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError) as e:
         raise InvalidBackupError(f"not a valid zip file: {e}") from e
     return Manifest.from_json(text)
 
