@@ -26,6 +26,9 @@ graphify-out/.graphify_python
 graphify-out/.graphify_root
 graphify-out/manifest.json
 graphify-out/cost.json
+graphify-out/*.sig
+# snapshots of earlier graphs that `graphify update` keeps, one folder per date
+graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 
 # Claude Code local settings
 .claude/settings.json
