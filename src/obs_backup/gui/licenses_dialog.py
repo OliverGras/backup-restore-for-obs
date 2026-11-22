@@ -1,7 +1,5 @@
 """Dialog listing the app's own license and the bundled third-party licenses."""
 
-from __future__ import annotations
-
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices, QFontDatabase
 from PySide6.QtWidgets import (

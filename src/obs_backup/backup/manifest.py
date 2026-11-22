@@ -1,15 +1,24 @@
 """The manifest.json inside every backup, and finding backups."""
 
-from __future__ import annotations
-
 import json
 import zipfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import TypedDict
 
 from obs_backup.backup.errors import InvalidBackupError
 from obs_backup.backup.layout import FORMAT, FORMAT_VERSION, MANIFEST
 from obs_backup.backup.models import MediaRef
+
+
+class ProfileEntry(TypedDict, closed=True):
+    name: str  # profile name shown in OBS
+    dir: str  # folder name under basic/profiles
+
+
+class SceneCollectionEntry(TypedDict, closed=True):
+    name: str  # scene collection name shown in OBS
+    file: str  # file name under basic/scenes
 
 
 @dataclass
@@ -19,8 +28,8 @@ class Manifest:
     source_os: str
     obs_version: str | None
     config_dir: str
-    profiles: list[dict]
-    scene_collections: list[dict]
+    profiles: list[ProfileEntry]
+    scene_collections: list[SceneCollectionEntry]
     global_settings: bool
     plugin_config: bool
     browser_data: bool
@@ -87,6 +96,6 @@ def list_backups(folder: Path) -> list[tuple[Path, Manifest]]:
     for f in sorted(folder.glob("*.zip"), key=lambda p: p.stat().st_mtime, reverse=True):
         try:
             out.append((f, read_manifest(f)))
-        except (InvalidBackupError, OSError):
+        except InvalidBackupError, OSError:
             continue
     return out

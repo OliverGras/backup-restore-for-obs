@@ -1,7 +1,5 @@
 """Work out which files a backup should contain."""
 
-from __future__ import annotations
-
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -44,23 +42,21 @@ def _is_browser_skip_file(name: str) -> bool:
 
 def collect_files(config_dir: Path, sel: Selection) -> list[Path]:
     """Files under ``config_dir`` that ``sel`` covers (without media)."""
-    files: list[Path] = []
-    for d in sel.profiles:
-        files += walk_files(config_dir / obs_config.PROFILES_DIR / d)
-    for f in sel.scene_collections:
-        p = config_dir / obs_config.SCENES_DIR / f
-        if p.is_file():
-            files.append(p)
+    files = [*walk_files(config_dir / obs_config.PROFILES_DIR / d) for d in sel.profiles]
+    files += [
+        path
+        for f in sel.scene_collections
+        if (path := config_dir / obs_config.SCENES_DIR / f).is_file()
+    ]
     if sel.global_settings:
         files += [config_dir / f for f in obs_config.GLOBAL_FILES if (config_dir / f).is_file()]
-        for d in obs_config.GLOBAL_DIRS:
-            files += walk_files(config_dir / d)
-    if sel.plugin_config:
-        root = config_dir / obs_config.PLUGIN_CONFIG_DIR
-        if root.is_dir():
-            for child in sorted(root.iterdir()):
-                if child.name != obs_config.BROWSER_DIR.name:
-                    files += walk_files(child)
+        files += [*walk_files(config_dir / d) for d in obs_config.GLOBAL_DIRS]
+    if sel.plugin_config and (root := config_dir / obs_config.PLUGIN_CONFIG_DIR).is_dir():
+        files += [
+            *walk_files(child)
+            for child in sorted(root.iterdir())
+            if child.name != obs_config.BROWSER_DIR.name
+        ]
     if sel.browser_data:
         files += walk_files(
             config_dir / obs_config.BROWSER_DIR,
@@ -78,7 +74,7 @@ def scan_media(config_dir: Path, scene_files: list[str]) -> list[MediaRef]:
     for f in scene_files:
         try:
             data = load_scene_json(config_dir / obs_config.SCENES_DIR / f)
-        except (OSError, ValueError):
+        except OSError, ValueError:
             continue
         for path in find_media_files(data):
             ref = refs.get(path)

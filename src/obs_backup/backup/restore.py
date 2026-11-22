@@ -1,7 +1,5 @@
 """Restore a backup file into an OBS config folder."""
 
-from __future__ import annotations
-
 import json
 import shutil
 import zipfile
@@ -88,7 +86,7 @@ def _plan_media(
         try:
             if Path(ref.original).is_file():
                 continue  # still where the scene collection expects it
-        except (OSError, ValueError):
+        except OSError, ValueError:
             pass
         if sel.media and media_dir is not None and ref.archive in archive_names:
             target = unique_media_target(Path(media_dir), file_name(ref.original), ref.size)

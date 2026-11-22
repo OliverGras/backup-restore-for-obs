@@ -9,13 +9,15 @@ description = "Back up and restore OBS Studio profiles, scene collections, sourc
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.11"
+requires-python = ">=3.15"
 dependencies = [
     "PySide6-Essentials>=6.6",
     "psutil>=5.9",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.15",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
     "Topic :: Multimedia :: Video",
@@ -51,7 +53,7 @@ addopts = ["--import-mode=importlib"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py315"
 
 [tool.ruff.lint]
 # pycodestyle, pyflakes, import order, pyupgrade (outdated syntax), bugbear, simplify

@@ -1,7 +1,5 @@
 """Main window: menus, the OBS installation panel, the two tabs and the status bar."""
 
-from __future__ import annotations
-
 from PySide6.QtCore import Slot
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent
 from PySide6.QtWidgets import (

@@ -1,7 +1,5 @@
 """“Restore” tab: pick a backup, choose what to restore and restore it."""
 
-from __future__ import annotations
-
 from pathlib import Path
 
 from PySide6.QtCore import Signal

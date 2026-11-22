@@ -2,10 +2,10 @@
 
 import sys
 
+lazy from obs_backup.gui import run  # Qt is loaded only when the app actually starts
+
 
 def main() -> int:
-    from obs_backup.gui import run
-
     return run(sys.argv)
 
 

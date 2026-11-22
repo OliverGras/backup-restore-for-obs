@@ -15,8 +15,6 @@ A running OBS process is used to find its executable, and from that whether it r
 in portable mode.
 """
 
-from __future__ import annotations
-
 import os
 import sys
 from dataclasses import dataclass, field
@@ -132,7 +130,7 @@ def find_running_obs() -> list[RunningObs]:
                     cmdline=list(proc.info.get("cmdline") or []),
                 )
             )
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        except psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess:
             continue
     return found
 

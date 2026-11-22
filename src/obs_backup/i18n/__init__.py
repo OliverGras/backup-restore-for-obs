@@ -6,17 +6,18 @@ the values and add the module to ``_MODULES`` below. Missing keys fall back to
 English; a test checks that every language has every key.
 """
 
-from __future__ import annotations
-
 import locale
 
 from obs_backup.i18n import de, en
 
 DEFAULT = "en"
-_MODULES = {"en": en, "de": de}
+_MODULES = frozendict(en=en, de=de)
 
-LANGUAGES: dict[str, str] = {code: module.NAME for code, module in _MODULES.items()}
-STRINGS: dict[str, dict[str, str]] = {code: module.STRINGS for code, module in _MODULES.items()}
+# Read-only: language code -> display name, and language code -> texts.
+LANGUAGES: frozendict[str, str] = frozendict({code: m.NAME for code, m in _MODULES.items()})
+STRINGS: frozendict[str, frozendict[str, str]] = frozendict(
+    {code: frozendict(m.STRINGS) for code, m in _MODULES.items()}
+)
 
 _current = DEFAULT
 

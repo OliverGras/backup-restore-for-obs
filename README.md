@@ -102,7 +102,7 @@ uv run backup-restore-for-obs    # start the app
 uv run pytest                    # run the tests
 ```
 
-uv uses the Python version in `.python-version` (3.13); the app itself supports Python 3.10 or newer. Dependency versions are pinned in `uv.lock`. To update them, run `uv lock --upgrade` and commit the new lock file.
+The project needs **Python 3.15** (set in `.python-version`; uv installs it if needed). It uses 3.15 features such as lazy imports and `frozendict`. Dependency versions are pinned in `uv.lock`. To update them, run `uv lock --upgrade` and commit the new lock file.
 
 Build a standalone app (output in `dist/`):
 

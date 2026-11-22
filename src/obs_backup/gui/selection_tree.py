@@ -1,7 +1,5 @@
 """Checkable tree of the things a backup can hold."""
 
-from __future__ import annotations
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QPushButton, QTreeWidget, QTreeWidgetItem, QWidget
 

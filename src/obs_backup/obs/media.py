@@ -6,8 +6,6 @@ collection JSON. OBS writes them with forward slashes, also on Windows
 (``C:/Users/me/Videos/intro.mp4``).
 """
 
-from __future__ import annotations
-
 import json
 import re
 from collections.abc import Callable, Iterator
@@ -62,7 +60,7 @@ def find_media_files(scene_json: Any) -> list[str]:
         try:
             if Path(s).is_file():
                 seen[s] = None
-        except (OSError, ValueError):
+        except OSError, ValueError:
             continue
     return list(seen)
 

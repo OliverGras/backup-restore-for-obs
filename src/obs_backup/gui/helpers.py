@@ -1,7 +1,5 @@
 """Small helpers for the user interface."""
 
-from __future__ import annotations
-
 from pathlib import Path
 
 from PySide6.QtCore import QStandardPaths, QUrl

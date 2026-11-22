@@ -1,7 +1,5 @@
 """Data passed into and returned from backup and restore."""
 
-from __future__ import annotations
-
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path

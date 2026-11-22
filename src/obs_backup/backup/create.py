@@ -1,12 +1,10 @@
 """Create a backup file."""
 
-from __future__ import annotations
-
 import os
-import platform
 import zipfile
 from datetime import datetime
 from pathlib import Path
+lazy import platform  # only needed when writing the manifest
 
 from obs_backup import __version__
 from obs_backup.backup.collect import collect_files, scan_media
@@ -18,10 +16,10 @@ from obs_backup.obs import config as obs_config
 from obs_backup.obs.media import file_name
 
 # Already-compressed formats are stored as they are; deflating them only costs time.
-STORED_SUFFIXES = {
+STORED_SUFFIXES = frozenset({
     ".mp4", ".mkv", ".mov", ".webm", ".flv", ".avi", ".mp3", ".ogg", ".m4a", ".aac",
     ".opus", ".flac", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".zip", ".7z",
-}  # fmt: skip
+})  # fmt: skip
 
 
 def default_backup_name(suffix: str = "") -> str:

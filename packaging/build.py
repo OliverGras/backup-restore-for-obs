@@ -7,13 +7,14 @@ macOS is not supported yet.
 Used locally and by .github/workflows/release.yml.
 """
 
-from __future__ import annotations
-
 import re
+import shutil
 import sys
 from pathlib import Path
 
 import PyInstaller.__main__
+
+from obs_backup.legal import PYTHON_LICENSE, python_license_file
 
 ROOT = Path(__file__).resolve().parents[1]
 # Shown in the Windows file properties. A code signing service will later require
@@ -65,6 +66,21 @@ def write_windows_version_info(version: str) -> Path:
     return path
 
 
+def copy_python_license() -> Path:
+    """The license of the Python being bundled; it lists that build's own libraries.
+
+    Release builds use the official python.org Python (GitHub Actions). Other Python
+    builds, such as the one uv installs, list different libraries in their license.
+    """
+    source = python_license_file()
+    if source is None:
+        sys.exit("Python's LICENSE.txt was not found, but it must be bundled with the app.")
+    target = BUILD / "licenses" / PYTHON_LICENSE
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target)
+    return target
+
+
 def main() -> None:
     src = ROOT / "src"
     licenses = "obs_backup/licenses"
@@ -83,6 +99,8 @@ def main() -> None:
         f"{ROOT / 'LICENSE'}:{licenses}",
         "--add-data",
         f"{ROOT / 'THIRD_PARTY_NOTICES.md'}:{licenses}",
+        "--add-data",
+        f"{copy_python_license()}:{licenses}",
         "--distpath",
         str(ROOT / "dist"),
         "--workpath",

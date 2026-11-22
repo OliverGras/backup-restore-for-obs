@@ -1,7 +1,5 @@
 """Top panel: which OBS config folder to use, and whether OBS is running."""
 
-from __future__ import annotations
-
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, Signal

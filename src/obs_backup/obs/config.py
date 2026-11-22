@@ -13,8 +13,6 @@ Layout (OBS 28+, still current in OBS 33)::
       logs/, crashes/, ...        not backed up
 """
 
-from __future__ import annotations
-
 import configparser
 import contextlib
 import json
@@ -33,53 +31,55 @@ PLUGINS_DIR = Path("plugins")
 
 # Chromium folders inside obs-browser that only hold caches or components Chromium
 # downloads again by itself. Cookies, Local Storage and IndexedDB (logins) are kept.
-BROWSER_CACHE_DIRS = {
-    # caches
-    "cache",
-    "code cache",
-    "gpucache",
-    "dawncache",
-    "dawngraphitecache",
-    "dawnwebgpucache",
-    "grshadercache",
-    "graphitedawncache",
-    "shadercache",
-    "crashpad",
-    "blob_storage",
-    "component_crx_cache",
-    "optimization_guide_model_store",
-    # components from the Chromium component updater
-    "widevinecdm",
-    "wasmttsengine",
-    "certificaterevocation",
-    "ondeviceheadsuggestmodel",
-    "dictionaries",
-    "optimizationhints",
-    "safe browsing",
-    "hyphen-data",
-    "meipreload",
-    "pkimetadata",
-    "safetytips",
-    "filetypepolicies",
-    "origintrials",
-    "segmentation_platform",
-    "crowd deny",
-    "actorsafetylists",
-    "amountextractionheuristicregexes",
-    "captchaproviders",
-    "firstpartysetspreloaded",
-    "privacysandboxattestationspreloaded",
-    "zxcvbndata",
-    "trusttokenkeycommitments",
-    "sslerrorassistant",
-    "subresource filter",
-    "autofillstates",
-    "screen_ai",
-    "probabilisticrevealtokenregistry",
-    "cookiereadinesslist",
-}
+BROWSER_CACHE_DIRS = frozenset(
+    {
+        # caches
+        "cache",
+        "code cache",
+        "gpucache",
+        "dawncache",
+        "dawngraphitecache",
+        "dawnwebgpucache",
+        "grshadercache",
+        "graphitedawncache",
+        "shadercache",
+        "crashpad",
+        "blob_storage",
+        "component_crx_cache",
+        "optimization_guide_model_store",
+        # components from the Chromium component updater
+        "widevinecdm",
+        "wasmttsengine",
+        "certificaterevocation",
+        "ondeviceheadsuggestmodel",
+        "dictionaries",
+        "optimizationhints",
+        "safe browsing",
+        "hyphen-data",
+        "meipreload",
+        "pkimetadata",
+        "safetytips",
+        "filetypepolicies",
+        "origintrials",
+        "segmentation_platform",
+        "crowd deny",
+        "actorsafetylists",
+        "amountextractionheuristicregexes",
+        "captchaproviders",
+        "firstpartysetspreloaded",
+        "privacysandboxattestationspreloaded",
+        "zxcvbndata",
+        "trusttokenkeycommitments",
+        "sslerrorassistant",
+        "subresource filter",
+        "autofillstates",
+        "screen_ai",
+        "probabilisticrevealtokenregistry",
+        "cookiereadinesslist",
+    }
+)
 # Lock files Chromium keeps open while OBS runs.
-BROWSER_SKIP_FILES = {"lock", "lockfile", "singletonlock"}
+BROWSER_SKIP_FILES = frozenset({"lock", "lockfile", "singletonlock"})
 
 _VERSION_RE = re.compile(r"\bOBS (\d+\.\d+(?:\.\d+)?\S*) \(")
 
@@ -122,7 +122,7 @@ def scene_collection_name(path: Path) -> str:
         name = data.get("name") if isinstance(data, dict) else None
         if isinstance(name, str) and name:
             return name
-    except (OSError, ValueError):
+    except OSError, ValueError:
         pass
     return path.stem
 

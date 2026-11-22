@@ -1,7 +1,5 @@
 """Run long operations (backup, restore) in a background thread."""
 
-from __future__ import annotations
-
 import traceback
 from collections.abc import Callable
 from typing import Any
