@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable, Iterator
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any, Callable, Iterator
+from typing import Any
 
 _WIN_ABS = re.compile(r"^[A-Za-z]:[\\/]")
 

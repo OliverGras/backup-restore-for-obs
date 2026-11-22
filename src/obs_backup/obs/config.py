@@ -16,9 +16,11 @@ Layout (OBS 28+, still current in OBS 33)::
 from __future__ import annotations
 
 import configparser
+import contextlib
 import json
 import re
 from dataclasses import dataclass
+from itertools import islice
 from pathlib import Path
 
 PROFILES_DIR = Path("basic") / "profiles"
@@ -33,17 +35,48 @@ PLUGINS_DIR = Path("plugins")
 # downloads again by itself. Cookies, Local Storage and IndexedDB (logins) are kept.
 BROWSER_CACHE_DIRS = {
     # caches
-    "cache", "code cache", "gpucache", "dawncache", "dawngraphitecache", "dawnwebgpucache",
-    "grshadercache", "graphitedawncache", "shadercache", "crashpad", "blob_storage",
-    "component_crx_cache", "optimization_guide_model_store",
+    "cache",
+    "code cache",
+    "gpucache",
+    "dawncache",
+    "dawngraphitecache",
+    "dawnwebgpucache",
+    "grshadercache",
+    "graphitedawncache",
+    "shadercache",
+    "crashpad",
+    "blob_storage",
+    "component_crx_cache",
+    "optimization_guide_model_store",
     # components from the Chromium component updater
-    "widevinecdm", "wasmttsengine", "certificaterevocation", "ondeviceheadsuggestmodel",
-    "dictionaries", "optimizationhints", "safe browsing", "hyphen-data", "meipreload",
-    "pkimetadata", "safetytips", "filetypepolicies", "origintrials", "segmentation_platform",
-    "crowd deny", "actorsafetylists", "amountextractionheuristicregexes", "captchaproviders",
-    "firstpartysetspreloaded", "privacysandboxattestationspreloaded", "zxcvbndata",
-    "trusttokenkeycommitments", "sslerrorassistant", "subresource filter", "autofillstates",
-    "screen_ai", "probabilisticrevealtokenregistry", "cookiereadinesslist",
+    "widevinecdm",
+    "wasmttsengine",
+    "certificaterevocation",
+    "ondeviceheadsuggestmodel",
+    "dictionaries",
+    "optimizationhints",
+    "safe browsing",
+    "hyphen-data",
+    "meipreload",
+    "pkimetadata",
+    "safetytips",
+    "filetypepolicies",
+    "origintrials",
+    "segmentation_platform",
+    "crowd deny",
+    "actorsafetylists",
+    "amountextractionheuristicregexes",
+    "captchaproviders",
+    "firstpartysetspreloaded",
+    "privacysandboxattestationspreloaded",
+    "zxcvbndata",
+    "trusttokenkeycommitments",
+    "sslerrorassistant",
+    "subresource filter",
+    "autofillstates",
+    "screen_ai",
+    "probabilisticrevealtokenregistry",
+    "cookiereadinesslist",
 }
 # Lock files Chromium keeps open while OBS runs.
 BROWSER_SKIP_FILES = {"lock", "lockfile", "singletonlock"}
@@ -66,10 +99,8 @@ class SceneCollection:
 def read_ini(path: Path) -> configparser.ConfigParser:
     parser = configparser.ConfigParser(interpolation=None, strict=False)
     parser.optionxform = str  # keep key case
-    try:
+    with contextlib.suppress(OSError, configparser.Error):
         parser.read_string(path.read_text(encoding="utf-8-sig", errors="replace"))
-    except (OSError, configparser.Error):
-        pass
     return parser
 
 
@@ -126,12 +157,15 @@ def obs_version(config_dir: Path) -> str | None:
     logs = config_dir / "logs"
     if not logs.is_dir():
         return None
-    files = sorted((f for f in logs.glob("*.txt") if f.is_file()),
-                   key=lambda f: f.stat().st_mtime, reverse=True)
+    files = sorted(
+        (f for f in logs.glob("*.txt") if f.is_file()),
+        key=lambda f: f.stat().st_mtime,
+        reverse=True,
+    )
     for f in files[:3]:
         try:
             with f.open(encoding="utf-8", errors="replace") as fh:
-                for _, line in zip(range(80), fh):
+                for line in islice(fh, 80):
                     m = _VERSION_RE.search(line)
                     if m:
                         return m.group(1)

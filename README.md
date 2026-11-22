@@ -116,20 +116,31 @@ To release, set the version in [`src/obs_backup/__init__.py`](src/obs_backup/__i
 
 ```
 src/obs_backup/
-  locator.py     find running OBS and its config folder (standard, portable, Flatpak, Snap)
-  obs_config.py  read profiles, scene collections and OBS version from a config folder
-  media.py       find and rewrite media file paths in scene collections
-  archive.py     create and restore backup zips
-  i18n.py        English and German UI texts
-  gui.py         PySide6 interface
-  licenses/      license texts of the bundled third-party components
-packaging/       build script for the standalone apps
-tests/           pytest tests
+  obs/              knowledge about OBS Studio
+    locator.py        find running OBS and its config folder (standard, portable, Flatpak, Snap)
+    config.py         read profiles, scene collections and the OBS version
+    media.py          find and rewrite media file paths in scene collections
+  backup/           backup files
+    layout.py         how a backup zip is organised
+    models.py         Selection (what to back up or restore) and result types
+    manifest.py       manifest.json inside every backup; listing backups
+    collect.py        which files and media a selection covers
+    create.py         writing a backup
+    restore.py        restoring a backup
+  i18n/             UI texts: one file per language (en.py, de.py)
+  gui/              PySide6 interface: main window, OBS panel, backup and restore tabs, …
+  legal.py          license texts shown under Help → About → Licenses
+  licenses/         license texts of the bundled third-party components
+packaging/          build script for the standalone apps
+tests/              pytest tests, grouped like the code (backup/, obs/, gui/)
 ```
 
 ## Contributing
 
-Issues and pull requests are welcome. **To add a language**, copy the `"en"` block in [`src/obs_backup/i18n.py`](src/obs_backup/i18n.py), translate it and add the language to `LANGUAGES`. A test checks that no text is missing.
+Issues and pull requests are welcome.
+
+- **Code style:** the code is formatted with [ruff](https://docs.astral.sh/ruff/). Install the git hooks once with `uv run pre-commit install`; they then sort imports and format the code on every commit. CI checks formatting (`uv run ruff format --check`) and lint rules (`uv run ruff check`).
+- **To add a language**, copy [`src/obs_backup/i18n/en.py`](src/obs_backup/i18n/en.py) to `<language code>.py`, translate the texts and add the module to `_MODULES` in [`src/obs_backup/i18n/__init__.py`](src/obs_backup/i18n/__init__.py). Tests check that no text is missing and that the `{placeholders}` match.
 
 ## License
 

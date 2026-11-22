@@ -25,7 +25,12 @@ from pathlib import Path
 import psutil
 
 PROCESS_NAMES = {"obs64.exe", "obs32.exe", "obs.exe", "obs"}
-PORTABLE_MARKERS = ("obs_portable_mode.txt", "portable_mode.txt", "obs_portable_mode", "portable_mode")
+PORTABLE_MARKERS = (
+    "obs_portable_mode.txt",
+    "portable_mode.txt",
+    "obs_portable_mode",
+    "portable_mode",
+)
 PORTABLE_FLAGS = {"--portable", "-p"}
 FLATPAK_ID = "com.obsproject.Studio"
 
@@ -53,8 +58,9 @@ def _home() -> Path:
     return Path.home()
 
 
-def default_config_dir(platform: str | None = None, env: dict[str, str] | None = None,
-                       home: Path | None = None) -> Path:
+def default_config_dir(
+    platform: str | None = None, env: dict[str, str] | None = None, home: Path | None = None
+) -> Path:
     platform = platform or sys.platform
     env = os.environ if env is None else env
     home = home or _home()
@@ -90,9 +96,13 @@ def is_portable(executable: Path | None, cmdline: list[str]) -> bool:
     return any((root / marker).exists() for marker in PORTABLE_MARKERS)
 
 
-def config_dir_for_process(executable: Path | None, cmdline: list[str],
-                           platform: str | None = None, env: dict[str, str] | None = None,
-                           home: Path | None = None) -> tuple[Path, str]:
+def config_dir_for_process(
+    executable: Path | None,
+    cmdline: list[str],
+    platform: str | None = None,
+    env: dict[str, str] | None = None,
+    home: Path | None = None,
+) -> tuple[Path, str]:
     """Work out which configuration folder a running OBS process uses."""
     platform = platform or sys.platform
     if executable is not None:
@@ -102,9 +112,8 @@ def config_dir_for_process(executable: Path | None, cmdline: list[str],
                 return flatpak_config_dir(home), "flatpak"
             if exe.startswith("/snap/"):
                 return snap_config_dir(home), "snap"
-    if is_portable(executable, cmdline):
-        if executable is not None:
-            return install_root(executable) / "config" / "obs-studio", "portable"
+    if executable is not None and is_portable(executable, cmdline):
+        return install_root(executable) / "config" / "obs-studio", "portable"
     return default_config_dir(platform, env, home), "standard"
 
 
@@ -116,11 +125,13 @@ def find_running_obs() -> list[RunningObs]:
             if name not in PROCESS_NAMES:
                 continue
             exe = proc.info.get("exe")
-            found.append(RunningObs(
-                pid=proc.info["pid"],
-                executable=Path(exe) if exe else None,
-                cmdline=list(proc.info.get("cmdline") or []),
-            ))
+            found.append(
+                RunningObs(
+                    pid=proc.info["pid"],
+                    executable=Path(exe) if exe else None,
+                    cmdline=list(proc.info.get("cmdline") or []),
+                )
+            )
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
     return found

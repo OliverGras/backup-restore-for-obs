@@ -1,0 +1,61 @@
+"""Smoke tests: the window builds, its parts are wired up, languages switch.
+
+Skipped where Qt can't be loaded (e.g. a server without graphics libraries).
+"""
+
+from pathlib import Path
+
+import pytest
+
+QtWidgets = pytest.importorskip("PySide6.QtWidgets", exc_type=ImportError)
+
+from obs_backup import backup  # noqa: E402
+from obs_backup.gui.main_window import MainWindow  # noqa: E402
+from obs_backup.gui.settings import AppSettings  # noqa: E402
+from obs_backup.i18n import DEFAULT, LANGUAGES, set_language  # noqa: E402
+
+
+@pytest.fixture
+def app() -> QtWidgets.QApplication:
+    return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+
+@pytest.fixture
+def settings(tmp_path: Path, obs: Path) -> AppSettings:
+    s = AppSettings(tmp_path / "settings.ini")
+    s.backup_dir = tmp_path / "backups"
+    s.custom_config_dir = obs
+    s.last_config_dir = obs
+    return s
+
+
+@pytest.fixture
+def window(app: QtWidgets.QApplication, settings: AppSettings):
+    w = MainWindow(settings)
+    yield w
+    w.close()
+    set_language(DEFAULT)
+
+
+def test_shows_the_chosen_obs_folder(window: MainWindow, obs: Path) -> None:
+    assert window.install.config_dir == obs
+    tree = window.backup_tab._tree
+    labels = [tree.topLevelItem(i).text(0) for i in range(tree.topLevelItemCount())]
+    assert len(labels) == 5  # profiles, scenes, general, plugin settings, browser data
+
+
+def test_new_backup_appears_in_restore_tab(
+    window: MainWindow, settings: AppSettings, obs: Path
+) -> None:
+    path = settings.backup_dir / backup.default_backup_name()
+    backup.create_backup(obs, path, backup.full_selection(obs))
+    window.backup_tab.backup_created.emit(path)
+    assert window.restore_tab._combo.currentData() == path
+    assert window.restore_tab._manifest is not None
+
+
+@pytest.mark.parametrize("code", sorted(LANGUAGES))
+def test_switch_language(window: MainWindow, obs: Path, code: str) -> None:
+    window.change_language(code)
+    assert window.install.config_dir == obs
+    assert window.backup_tab._tree.topLevelItemCount() == 5

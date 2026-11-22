@@ -9,7 +9,7 @@ description = "Back up and restore OBS Studio profiles, scene collections, sourc
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "PySide6-Essentials>=6.6",
     "psutil>=5.9",
@@ -34,6 +34,8 @@ backup-restore-for-obs = "obs_backup.__main__:main"
 dev = [
     "pytest>=8",
     "pyinstaller>=6",
+    "ruff>=0.17.6",
+    "pre-commit>=4.7.0",
 ]
 
 [tool.hatch.version]
@@ -43,5 +45,19 @@ path = "src/obs_backup/__init__.py"  # the only place the version is set
 packages = ["src/obs_backup"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]  # tests/ for the shared helpers in tests/support.py
 testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, import order, pyupgrade (outdated syntax), bugbear, simplify
+select = ["E", "W", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]  # line length is handled by the formatter; long texts may stay long
+
+[tool.ruff.lint.isort]
+known-first-party = ["obs_backup"]
+known-local-folder = ["support"]

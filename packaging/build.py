@@ -24,8 +24,13 @@ BUILD = ROOT / "build"
 
 # Qt modules the app doesn't use; leaving them out keeps the app small.
 EXCLUDED_MODULES = [
-    "PySide6.QtNetwork", "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtOpenGL",
-    "PySide6.QtSvg", "PySide6.QtPdf", "tkinter",
+    "PySide6.QtNetwork",
+    "PySide6.QtQml",
+    "PySide6.QtQuick",
+    "PySide6.QtOpenGL",
+    "PySide6.QtSvg",
+    "PySide6.QtPdf",
+    "tkinter",
 ]
 
 
@@ -67,15 +72,23 @@ def main() -> None:
         str(src / "obs_backup" / "__main__.py"),
         "--noconfirm",
         "--windowed",
-        "--name", FILE_NAME,
+        "--name",
+        FILE_NAME,
         "--onefile",
-        "--paths", str(src),
-        "--add-data", f"{src / 'obs_backup' / 'licenses'}:{licenses}",
-        "--add-data", f"{ROOT / 'LICENSE'}:{licenses}",
-        "--add-data", f"{ROOT / 'THIRD_PARTY_NOTICES.md'}:{licenses}",
-        "--distpath", str(ROOT / "dist"),
-        "--workpath", str(BUILD),
-        "--specpath", str(BUILD),
+        "--paths",
+        str(src),
+        "--add-data",
+        f"{src / 'obs_backup' / 'licenses'}:{licenses}",
+        "--add-data",
+        f"{ROOT / 'LICENSE'}:{licenses}",
+        "--add-data",
+        f"{ROOT / 'THIRD_PARTY_NOTICES.md'}:{licenses}",
+        "--distpath",
+        str(ROOT / "dist"),
+        "--workpath",
+        str(BUILD),
+        "--specpath",
+        str(BUILD),
     ]
     for module in EXCLUDED_MODULES:
         args += ["--exclude-module", module]
