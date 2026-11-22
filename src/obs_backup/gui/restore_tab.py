@@ -206,7 +206,7 @@ class RestoreTab(QWidget):
                 zip_path, cfg, sel, media_dir, safety_dir, progress
             )
 
-        self._tasks.run(tr("restore_running"), task, self._on_restore_done)
+        self._tasks.run(tr("restore_running"), task, self._on_restore_done, self._on_restore_failed)
 
     def _on_restore_done(self, result: RestoreResult) -> None:
         text = tr("restore_done_text", files=result.files)
@@ -223,5 +223,13 @@ class RestoreTab(QWidget):
         if result.safety_backup:
             text += tr("restore_safety_done", path=result.safety_backup)
         QMessageBox.information(self, tr("restore_done_title"), text)
+        self._show_changes()
+
+    def _on_restore_failed(self, _error: str) -> None:
+        # The main window shows the error. A restore can fail while it replaces
+        # files, and the safety backup is new: show both.
+        self._show_changes()
+
+    def _show_changes(self) -> None:
         self.refresh_backups()
         self.restored.emit()

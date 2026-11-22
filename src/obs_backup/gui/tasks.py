@@ -46,13 +46,24 @@ class TaskRunner(QObject):
         self._thread: QThread | None = None
         self._worker: Worker | None = None
         self._on_done: Callable[[Any], None] | None = None
+        self._on_error: Callable[[str], None] | None = None
 
     @property
     def busy(self) -> bool:
         return self._thread is not None
 
-    def run(self, message: str, fn: Task, on_done: Callable[[Any], None]) -> bool:
-        """Start ``fn(progress)`` in the background; ``on_done(result)`` runs afterwards."""
+    def run(
+        self,
+        message: str,
+        fn: Task,
+        on_done: Callable[[Any], None],
+        on_error: Callable[[str], None] | None = None,
+    ) -> bool:
+        """Start ``fn(progress)`` in the background.
+
+        Afterwards ``on_done(result)`` runs, or, if ``fn`` raised, ``on_error(message)``
+        (after ``failed`` was emitted, which shows the error).
+        """
         if self.busy:
             return False
         thread = QThread(self)
@@ -63,7 +74,8 @@ class TaskRunner(QObject):
         worker.progress.connect(self._on_progress)
         worker.finished.connect(self._on_finished)
         worker.failed.connect(self._on_failed)
-        self._thread, self._worker, self._on_done = thread, worker, on_done
+        self._thread, self._worker = thread, worker
+        self._on_done, self._on_error = on_done, on_error
         self.started.emit(message)
         thread.start()
         return True
@@ -81,12 +93,15 @@ class TaskRunner(QObject):
 
     @Slot(str)
     def _on_failed(self, error: str) -> None:
+        on_error = self._on_error
         self._stop()
         self.failed.emit(error)
+        if on_error:
+            on_error(error)
 
     def _stop(self) -> None:
         if self._thread is not None:
             self._thread.quit()
             self._thread.wait()
-        self._thread = self._worker = self._on_done = None
+        self._thread = self._worker = self._on_done = self._on_error = None
         self.ended.emit()

@@ -158,10 +158,11 @@ def list_backups(folder: Path) -> list[tuple[Path, Manifest]]:
     """Valid backups in ``folder``, newest first."""
     if not folder.is_dir():
         return []
-    out = []
-    for f in sorted(folder.glob("*.zip"), key=lambda p: p.stat().st_mtime, reverse=True):
-        try:
-            out.append((f, read_manifest(f)))
+    found = []
+    for f in folder.glob("*.zip"):
+        try:  # stat() too: a file can vanish meanwhile, or be a broken link
+            found.append((f.stat().st_mtime, f, read_manifest(f)))
         except InvalidBackupError, OSError:
             continue
-    return out
+    found.sort(key=lambda entry: entry[0], reverse=True)
+    return [(f, m) for _, f, m in found]

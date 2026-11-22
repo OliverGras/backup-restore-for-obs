@@ -8,7 +8,7 @@ import pytest
 
 from obs_backup import backup
 from obs_backup.backup import Selection
-from obs_backup.backup.layout import is_plain_name
+from obs_backup.backup.layout import creatable_name, is_plain_name
 
 from support import craft_backup
 
@@ -66,6 +66,19 @@ def test_rejects_manifest_that_is_not_utf8(tmp_path: Path) -> None:
         backup.read_manifest(path)
 
 
+def test_list_backups_skips_file_that_vanished(
+    obs: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder = tmp_path / "backups"
+    backup.create_backup(obs, folder / "a.zip", Selection(global_settings=True))
+    real_glob = Path.glob
+    # As if gone.zip was deleted between listing the folder and reading it.
+    monkeypatch.setattr(
+        Path, "glob", lambda self, pattern: [*real_glob(self, pattern), self / "gone.zip"]
+    )
+    assert [p.name for p, _ in backup.list_backups(folder)] == ["a.zip"]
+
+
 def test_list_backups_skips_damaged_manifests(obs: Path, tmp_path: Path) -> None:
     folder = tmp_path / "backups"
     backup.create_backup(obs, folder / "good.zip", Selection(global_settings=True))
@@ -95,6 +108,25 @@ def test_plain_names(name: str) -> None:
 @pytest.mark.parametrize("name", ["", ".", "..", "a/b", r"a\b", "/abs", "a\0b"])
 def test_names_that_are_not_plain(name: str) -> None:
     assert not is_plain_name(name)
+
+
+@pytest.mark.parametrize(
+    ("name", "windows", "expected"),
+    [
+        ("ok.png", True, "ok.png"),
+        ("what?.png", True, "what_.png"),
+        ('a<b>c:"d|e*.png', True, "a_b_c__d_e_.png"),
+        ("trailing dot.", True, "trailing dot"),
+        ("CON.png", True, "_CON.png"),
+        ("...", True, "_"),
+        ("what?.png", False, "what?.png"),  # Linux and macOS allow it
+    ],
+)
+def test_creatable_name(
+    monkeypatch: pytest.MonkeyPatch, name: str, windows: bool, expected: str
+) -> None:
+    monkeypatch.setattr("obs_backup.backup.layout.WINDOWS", windows)
+    assert creatable_name(name) == expected
 
 
 @pytest.mark.skipif(os.name != "nt", reason="drive-relative paths exist only on Windows")

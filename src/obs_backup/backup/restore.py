@@ -11,7 +11,7 @@ from pathlib import Path
 from obs_backup.backup.collect import safety_selection
 from obs_backup.backup.create import create_backup, default_backup_name
 from obs_backup.backup.errors import ZIP_ERRORS, InvalidBackupError, RestoreFailedError
-from obs_backup.backup.layout import CONFIG_PREFIX, is_plain_name
+from obs_backup.backup.layout import CONFIG_PREFIX, can_create, creatable_name, is_plain_name
 from obs_backup.backup.manifest import Manifest, read_manifest
 from obs_backup.backup.models import MediaRef, Progress, RestoreResult, Selection
 from obs_backup.obs import config as obs_config
@@ -60,14 +60,43 @@ def safe_target(base: Path, rel: str) -> Path:
     ``base``: ``basic/profiles/P/../../../plugins/x`` would otherwise pass as a
     file of profile ``P`` and land in a part of the folder that was not selected.
     (``zipfile`` turns backslashes in member names into ``/`` on Windows.)
+
+    The check is on the path as written, without resolving symlinks: a folder the
+    user linked elsewhere (``basic/scenes`` in a synced folder) is restored into.
+    A backup can't add symlinks, so the links followed are the user's own.
     """
     if any(part in ("", ".", "..") for part in rel.split("/")):
         raise InvalidBackupError(f"unsafe path in backup: {rel}")
-    base = base.resolve()
-    target = (base / rel).resolve()
+    base = base.absolute()
+    target = base / rel  # an absolute rel (C:/x on Windows) replaces base
     if base not in target.parents:
         raise InvalidBackupError(f"unsafe path in backup: {rel}")
     return target
+
+
+def _config_target(config_dir: Path, name: str) -> Path:
+    """Where the config member ``name`` goes; unsafe or impossible paths raise."""
+    rel = name[len(CONFIG_PREFIX) :]
+    target = safe_target(config_dir, rel)
+    if not can_create(rel):
+        raise InvalidBackupError(f"file name not allowed on this system: {rel}")
+    return target
+
+
+def _empty(folder: Path) -> None:
+    """Remove everything in ``folder``; a linked folder stays a link."""
+    for child in folder.iterdir():
+        if child.is_dir() and not (child.is_symlink() or child.is_junction()):
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+
+
+def _move(src: Path, dst: Path) -> None:
+    try:
+        os.replace(src, dst)
+    except OSError:
+        shutil.move(src, dst)  # dst on another drive (a linked folder): copy instead
 
 
 def _crc32(path: Path) -> int:
@@ -124,7 +153,7 @@ def _plan_media(
                 continue  # still where the scene collection expects it
         except OSError, ValueError:
             pass
-        name = file_name(ref.original)
+        name = creatable_name(file_name(ref.original))
         info = infos.get(ref.archive)
         if sel.media and media_dir is not None and info is not None and is_plain_name(name):
             target = unique_media_target(Path(media_dir), name, info, taken)
@@ -193,7 +222,7 @@ def restore_backup(
         media_jobs, mapping = _plan_media(manifest, sel, media_dir, infos, result)
 
         # Check every path and scene collection before the first change.
-        targets = {name: safe_target(config_dir, name[len(CONFIG_PREFIX) :]) for name in members}
+        targets = {name: _config_target(config_dir, name) for name in members}
         scenes: dict[str, str] = {}
         if mapping:
             scene_members = {f"{CONFIG_PREFIX}{_SCENES}/{f}" for f in sel.scene_collections}
@@ -233,17 +262,14 @@ def restore_backup(
                     _unpack(zf, ref.archive, staging / str(n))
                     media_files.append((staging / str(n), target))
 
-            # 2. Replace. Profile folders are removed first, so files deleted
+            # 2. Replace. Profile folders are emptied first, so files deleted
             # since the backup don't linger.
             for target in profile_dirs:
                 if target.is_dir():
-                    shutil.rmtree(target)
-            for unpacked, target in config_files:
+                    _empty(target)
+            for unpacked, target in [*config_files, *media_files]:
                 target.parent.mkdir(parents=True, exist_ok=True)
-                os.replace(unpacked, target)
-            for unpacked, target in media_files:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.move(unpacked, target)  # media_dir may be on another drive
+                _move(unpacked, target)
         finally:
             shutil.rmtree(staging, ignore_errors=True)
             if created and not any(config_dir.iterdir()):

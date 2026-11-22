@@ -7,7 +7,12 @@ A backup is a plain zip file::
     media/0001_logo.png    optional copies of media files the scene collections use
 """
 
+import ntpath
+import re
+import sys
 from pathlib import Path
+
+WINDOWS = sys.platform == "win32"
 
 FORMAT = "obs-backup"
 FORMAT_VERSION = 1
@@ -28,3 +33,24 @@ def is_plain_name(name: str) -> bool:
         return False
     path = Path(name)
     return len(path.parts) == 1 and path.name == name
+
+
+def can_create(rel: str) -> bool:
+    """Whether this OS allows every name in ``rel`` (a ``/``-separated path).
+
+    A backup from Linux or macOS can hold names Windows refuses: ``a?b``, ``x:y``,
+    a trailing dot, or device names such as ``CON``. Checking them first keeps a
+    restore from failing halfway.
+    """
+    return not (WINDOWS and ntpath.isreserved(rel))
+
+
+_NOT_ON_WINDOWS = re.compile(r'[<>:"|?*\x00-\x1f]')
+
+
+def creatable_name(name: str) -> str:
+    """``name``, changed where needed so that this OS can create a file with it."""
+    if can_create(name):
+        return name
+    name = _NOT_ON_WINDOWS.sub("_", name).rstrip(" .") or "_"
+    return name if can_create(name) else f"_{name}"  # a device name such as CON.png

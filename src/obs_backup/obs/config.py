@@ -158,16 +158,20 @@ def has_plugins(config_dir: Path) -> bool:
     return root.is_dir() and any(root.iterdir())
 
 
+def _mtime(path: Path) -> float:
+    """Modification time, or 0 for a file that vanished (OBS removes old logs)."""
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
 def obs_version(config_dir: Path) -> str | None:
     """The OBS version from the newest log file, e.g. ``"33.0.1"``."""
     logs = config_dir / "logs"
     if not logs.is_dir():
         return None
-    files = sorted(
-        (f for f in logs.glob("*.txt") if f.is_file()),
-        key=lambda f: f.stat().st_mtime,
-        reverse=True,
-    )
+    files = sorted((f for f in logs.glob("*.txt") if f.is_file()), key=_mtime, reverse=True)
     for f in files[:3]:
         try:
             with f.open(encoding="utf-8", errors="replace") as fh:

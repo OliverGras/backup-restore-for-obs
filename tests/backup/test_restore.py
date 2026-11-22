@@ -1,6 +1,8 @@
 """Restoring backups, including media remapping and unsafe archives."""
 
 import json
+import shutil
+import sys
 import zipfile
 from pathlib import Path
 
@@ -120,7 +122,7 @@ def test_safe_target_refuses_the_folder_itself(tmp_path: Path) -> None:
     for rel in (".", "", "a/..", "a/../b", "a//b", "./a"):
         with pytest.raises(backup.InvalidBackupError):
             safe_target(tmp_path, rel)
-    assert safe_target(tmp_path, "a/b") == (tmp_path / "a" / "b").resolve()
+    assert safe_target(tmp_path, "a/b") == tmp_path / "a" / "b"
 
 
 def test_member_cannot_climb_into_unselected_parts(obs: Path, tmp_path: Path) -> None:
@@ -138,6 +140,109 @@ def test_member_cannot_climb_into_unselected_parts(obs: Path, tmp_path: Path) ->
         backup.restore_backup(zip_path, obs, Selection(profiles=["Twitch_Stream"]))
     assert _files(obs) == before
     assert not (obs / "plugins").exists()
+
+
+# --- backups from another OS -----------------------------------------------------------
+
+
+@pytest.fixture
+def on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Apply Windows' file name rules, whatever OS the tests run on."""
+    monkeypatch.setattr("obs_backup.backup.layout.WINDOWS", True)
+
+
+@pytest.mark.usefixtures("on_windows")
+@pytest.mark.parametrize("name", ["a?b.ini", "x:y.ini", "dot.", "CON"])
+def test_name_windows_refuses_stops_before_any_change(obs: Path, tmp_path: Path, name: str) -> None:
+    zip_path = craft_backup(
+        tmp_path / "linux.zip",
+        {"profiles": [{"name": "Twitch Stream", "dir": "Twitch_Stream"}]},
+        {
+            "config/basic/profiles/Twitch_Stream/basic.ini": "[General]\n",
+            f"config/basic/profiles/Twitch_Stream/{name}": "x",
+        },
+    )
+    before = _files(obs)
+    with pytest.raises(backup.InvalidBackupError, match="not allowed"):
+        backup.restore_backup(zip_path, obs, Selection(profiles=["Twitch_Stream"]))
+    assert _files(obs) == before
+
+
+@pytest.mark.usefixtures("on_windows")
+def test_media_name_windows_refuses_is_changed(tmp_path: Path) -> None:
+    original = "/home/me/what?.png"
+    zip_path = craft_backup(
+        tmp_path / "linux.zip",
+        {
+            "scene_collections": [{"name": "Main", "file": "Main.json"}],
+            "media": [
+                {
+                    "original": original,
+                    "archive": "media/0001_what?.png",
+                    "size": 3,
+                    "used_by": ["Main.json"],
+                }
+            ],
+        },
+        {
+            "config/basic/scenes/Main.json": json.dumps(
+                {"name": "Main", "sources": [{"settings": {"file": original}}]}
+            ),
+            "media/0001_what?.png": "PNG",
+        },
+    )
+    target, media_dir = tmp_path / "new", tmp_path / "m"
+    sel = Selection(scene_collections=["Main.json"], media=True)
+    backup.restore_backup(zip_path, target, sel, media_dir)
+    assert _restored_paths(target) == [(media_dir / "what_.png").as_posix()]
+    assert (media_dir / "what_.png").read_text() == "PNG"
+
+
+# --- folders the user linked elsewhere -------------------------------------------------
+
+
+def _link(link: Path, target: Path) -> None:
+    """A symlink, or on Windows without the rights for one, a junction."""
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError:
+        if sys.platform != "win32":
+            raise
+        import _winapi
+
+        _winapi.CreateJunction(str(target), str(link))
+
+
+def _is_link(path: Path) -> bool:
+    return path.is_symlink() or path.is_junction()
+
+
+def test_restore_into_linked_scenes_folder(obs: Path, tmp_path: Path) -> None:
+    synced = tmp_path / "synced scenes"
+    shutil.move(obs / "basic/scenes", synced)
+    _link(obs / "basic/scenes", synced)
+    dest = tmp_path / "b.zip"
+    sel = Selection(scene_collections=["Other.json"])
+    backup.create_backup(obs, dest, sel)
+    write(synced / "Other.json", "changed")
+
+    backup.restore_backup(dest, obs, sel)
+    assert _is_link(obs / "basic/scenes")
+    assert json.loads((synced / "Other.json").read_text())["name"] == "Other"
+
+
+def test_restore_into_linked_profile_folder(obs: Path, tmp_path: Path) -> None:
+    synced = tmp_path / "synced profile"
+    shutil.move(obs / "basic/profiles/Twitch_Stream", synced)
+    _link(obs / "basic/profiles/Twitch_Stream", synced)
+    dest = tmp_path / "b.zip"
+    sel = Selection(profiles=["Twitch_Stream"])
+    backup.create_backup(obs, dest, sel)
+    write(synced / "stale.ini")
+
+    backup.restore_backup(dest, obs, sel)
+    assert _is_link(obs / "basic/profiles/Twitch_Stream")
+    assert sorted(p.name for p in synced.iterdir()) == ["basic.ini", "service.json"]
 
 
 # --- nothing changes when the backup turns out to be bad ------------------------------
