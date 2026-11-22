@@ -58,3 +58,7 @@ class RestoreResult:
     # it; files of those names in the config folder were left as they were.
     kept_current: list[str] = field(default_factory=list)
     safety_backup: Path | None = None
+    # Restored profiles that use a hardware encoder (profile name -> kinds of encoder,
+    # e.g. "NVIDIA NVENC"). On a computer without that hardware OBS reports the
+    # encoder as missing until another one is chosen.
+    hardware_encoders: dict[str, list[str]] = field(default_factory=dict)

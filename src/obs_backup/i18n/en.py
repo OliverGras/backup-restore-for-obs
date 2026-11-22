@@ -121,6 +121,11 @@ STRINGS: dict[str, str] = {
         "\n\n{count} files could not be read when this backup was made, so they are not "
         "in it. Files of those names on this computer were left as they were:\n{files}"
     ),
+    "restore_hardware_encoders": (
+        "\n\nThese profiles use a hardware encoder:\n{profiles}\nIf this computer has "
+        "different graphics hardware, OBS reports the encoder as missing. Then choose "
+        "another encoder in OBS under Settings → Output."
+    ),
     "restore_safety_done": "\n\nYour previous state was saved to:\n{path}",
     "obs_running_title": "OBS is running",
     "obs_running_text": (

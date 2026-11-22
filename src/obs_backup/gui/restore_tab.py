@@ -231,6 +231,12 @@ class RestoreTab(QWidget):
                 count=len(result.kept_current),
                 files=preview_list(result.kept_current),
             )
+        if result.hardware_encoders:
+            profiles = [
+                f"{name} ({', '.join(vendors)})"
+                for name, vendors in result.hardware_encoders.items()
+            ]
+            text += tr("restore_hardware_encoders", profiles=preview_list(profiles))
         if result.safety_backup:
             text += tr("restore_safety_done", path=result.safety_backup)
         QMessageBox.information(self, tr("restore_done_title"), text)

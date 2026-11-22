@@ -387,7 +387,21 @@ def _restore(
         plan = _plan(zf, manifest, config_dir, sel, media_dir)
         if before_changes:
             before_changes()
-        return _apply(zf, plan, config_dir, progress)
+        result = _apply(zf, plan, config_dir, progress)
+    result.hardware_encoders = _hardware_encoders(config_dir, manifest, sel)
+    return result
+
+
+def _hardware_encoders(
+    config_dir: Path, manifest: Manifest, sel: Selection
+) -> dict[str, list[str]]:
+    """Restored profiles that use a hardware encoder, by profile name."""
+    names = {p["dir"]: p["name"] for p in manifest.profiles}
+    found = {
+        names.get(d, d): obs_config.hardware_encoders(config_dir / obs_config.PROFILES_DIR / d)
+        for d in sel.profiles
+    }
+    return {name: vendors for name, vendors in found.items() if vendors}
 
 
 def restore_backup(
