@@ -119,6 +119,11 @@ STRINGS: dict[str, str] = {
         "\n\n{count} Dateien konnten beim Erstellen dieses Backups nicht gelesen werden und "
         "fehlen darin. Gleichnamige Dateien auf diesem Computer blieben unverändert:\n{files}"
     ),
+    "restore_hardware_encoders": (
+        "\n\nDiese Profile nutzen einen Hardware-Kodierer:\n{profiles}\nHat dieser Computer "
+        "andere Grafikhardware, meldet OBS den Kodierer als fehlend. Wähle dann in OBS "
+        "unter Einstellungen → Ausgabe einen anderen Kodierer."
+    ),
     "restore_safety_done": "\n\nDein vorheriger Stand wurde gesichert unter:\n{path}",
     "obs_running_title": "OBS läuft",
     "obs_running_text": (

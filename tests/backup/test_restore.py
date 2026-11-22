@@ -90,6 +90,21 @@ def test_restore_replaces_profile_folder(obs: Path, tmp_path: Path) -> None:
     assert (obs / "basic/profiles/Unbenannt/basic.ini").exists()  # untouched
 
 
+def test_restore_reports_profiles_with_hardware_encoders(obs: Path, tmp_path: Path) -> None:
+    write(
+        obs / "basic/profiles/Twitch_Stream/basic.ini",
+        "[General]\nName=Twitch Stream\n[Output]\nMode=Advanced\n"
+        "[AdvOut]\nEncoder=obs_nvenc_av1_tex\nRecEncoder=ffmpeg_nvenc\n",
+    )
+    dest = tmp_path / "b.zip"
+    backup.create_backup(obs, dest, everything(obs, media=False))
+    result = backup.restore_backup(dest, tmp_path / "new", everything(obs, media=False))
+    assert result.hardware_encoders == {"Twitch Stream": ["NVIDIA NVENC"]}
+    # Not restored, not reported.
+    sel = Selection(profiles=["Unbenannt"])
+    assert backup.restore_backup(dest, tmp_path / "other", sel).hardware_encoders == {}
+
+
 def test_restore_only_selected(obs: Path, tmp_path: Path) -> None:
     dest = tmp_path / "b.zip"
     backup.create_backup(obs, dest, everything(obs, media=False))
