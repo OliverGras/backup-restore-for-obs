@@ -16,7 +16,8 @@ from pathlib import Path
 import PyInstaller.__main__
 
 ROOT = Path(__file__).resolve().parents[1]
-# Must match the project name registered with SignPath (signed files' product name).
+# Shown in the Windows file properties. A code signing service will later require
+# this to match the registered project name.
 PRODUCT_NAME = "OBS Backup & Restore"
 FILE_NAME = "OBS-Backup-Restore"
 BUILD = ROOT / "build"

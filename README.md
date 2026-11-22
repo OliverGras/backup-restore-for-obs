@@ -27,7 +27,7 @@ Get the latest version from the [Releases](../../releases) page. No installation
 
 Each release also has a `SHA256SUMS.txt` for checking the downloads.
 
-The Windows app is code-signed through the [SignPath Foundation](https://signpath.org/); see the [code signing policy](#code-signing-policy). The macOS app is not signed: right-click it → “Open” the first time.
+The apps are built by GitHub Actions from the source code in this repository ([release workflow](.github/workflows/release.yml)), but they are not code-signed yet. Windows SmartScreen may therefore warn you the first time: click “More info” → “Run anyway”. On macOS, right-click the app → “Open” the first time.
 
 To uninstall, delete the app. Its settings are stored in the registry under `HKEY_CURRENT_USER\Software\OBS Backup & Restore` (Windows), in a `.plist` file named after OBS Backup & Restore in `~/Library/Preferences/` (macOS) or in `~/.config/OBS Backup & Restore/` (Linux). Your backups stay where you saved them.
 
@@ -76,19 +76,6 @@ obs-backup_2026-11-22_09-36-10.zip
 ## Privacy
 
 OBS Backup & Restore does not send any information to other networked systems unless the user specifically requests it. It works only with files on your computer. It has no telemetry, no update check and no accounts.
-
-## Code signing policy
-
-Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
-
-Only files built automatically by GitHub Actions from the source code in this repository are signed ([release workflow](.github/workflows/release.yml)). An approver signs off on every release before it is signed.
-
-| Role | Members |
-|------|---------|
-| Committers and reviewers | [Oliver Gras](https://github.com/OliverGras) |
-| Approvers | [Oliver Gras](https://github.com/OliverGras) |
-
-Changes from people outside the team, for example pull requests, are reviewed by a committer before they are merged.
 
 ## Run from source
 

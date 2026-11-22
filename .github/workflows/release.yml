@@ -3,9 +3,8 @@
 #
 # Trigger: push a tag such as v0.1.0  (git tag v0.1.0 && git push origin v0.1.0)
 #
-# Code signing (Windows) via SignPath Foundation is added here once the
-# SignPath project is approved; SignPath requires that signed files come from
-# this automated build.
+# Code signing can be added here later: SignPath Foundation and OSSign both
+# require that signed files come from this automated build.
 
 name: Release
 

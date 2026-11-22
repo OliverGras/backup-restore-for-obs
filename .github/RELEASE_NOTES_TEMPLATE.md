@@ -13,9 +13,7 @@ OBS Backup & Restore backs up and restores OBS Studio profiles, scene collection
 
 > ⚠ Backups contain your stream keys and passwords. Keep them private.
 
-## Code signing policy
-
-Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/). See the [code signing policy](REPO_URL/blob/main/README.md#code-signing-policy).
+The apps are not code-signed yet. Windows SmartScreen may warn you the first time: click “More info” → “Run anyway”.
 
 ## Licenses
 
