@@ -17,6 +17,7 @@ in portable mode.
 
 import os
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -57,17 +58,17 @@ def _home() -> Path:
 
 
 def default_config_dir(
-    platform: str | None = None, env: dict[str, str] | None = None, home: Path | None = None
+    platform: str | None = None, env: Mapping[str, str] | None = None, home: Path | None = None
 ) -> Path:
     platform = platform or sys.platform
-    env = os.environ if env is None else env
+    environ: Mapping[str, str] = os.environ if env is None else env
     home = home or _home()
     if platform.startswith("win"):
-        appdata = env.get("APPDATA") or str(home / "AppData" / "Roaming")
+        appdata = environ.get("APPDATA") or str(home / "AppData" / "Roaming")
         return Path(appdata) / "obs-studio"
     if platform == "darwin":
         return home / "Library" / "Application Support" / "obs-studio"
-    xdg = env.get("XDG_CONFIG_HOME") or str(home / ".config")
+    xdg = environ.get("XDG_CONFIG_HOME") or str(home / ".config")
     return Path(xdg) / "obs-studio"
 
 
@@ -98,7 +99,7 @@ def config_dir_for_process(
     executable: Path | None,
     cmdline: list[str],
     platform: str | None = None,
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
     home: Path | None = None,
 ) -> tuple[Path, str]:
     """Work out which configuration folder a running OBS process uses."""

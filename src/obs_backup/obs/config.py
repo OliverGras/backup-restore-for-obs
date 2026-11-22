@@ -96,9 +96,15 @@ class SceneCollection:
     file_name: str
 
 
+class _CaseKeepingParser(configparser.ConfigParser):
+    """ConfigParser that keeps the case of keys (OBS writes keys like ``ProfileDir``)."""
+
+    def optionxform(self, optionstr: str) -> str:
+        return optionstr
+
+
 def read_ini(path: Path) -> configparser.ConfigParser:
-    parser = configparser.ConfigParser(interpolation=None, strict=False)
-    parser.optionxform = str  # keep key case
+    parser = _CaseKeepingParser(interpolation=None, strict=False)
     with contextlib.suppress(OSError, configparser.Error):
         parser.read_string(path.read_text(encoding="utf-8-sig", errors="replace"))
     return parser

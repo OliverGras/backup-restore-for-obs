@@ -20,8 +20,12 @@ class AppSettings:
         else:
             self._qs = QSettings(str(ini_file), QSettings.Format.IniFormat)
 
-    def _path(self, key: str) -> Path | None:
+    def _str(self, key: str) -> str:
         value = self._qs.value(key, "")
+        return value if isinstance(value, str) else ""
+
+    def _path(self, key: str) -> Path | None:
+        value = self._str(key)
         return Path(value) if value else None
 
     def _set_path(self, key: str, path: Path | None) -> None:
@@ -45,7 +49,7 @@ class AppSettings:
 
     @property
     def include_media(self) -> bool:
-        return self._qs.value("include_media", False, type=bool)
+        return bool(self._qs.value("include_media", False, type=bool))
 
     @include_media.setter
     def include_media(self, value: bool) -> None:
@@ -53,7 +57,7 @@ class AppSettings:
 
     @property
     def language(self) -> str | None:
-        return self._qs.value("language", "") or None
+        return self._str("language") or None
 
     @language.setter
     def language(self, code: str) -> None:

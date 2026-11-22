@@ -139,7 +139,7 @@ tests/              pytest tests, grouped like the code (backup/, obs/, gui/)
 
 Issues and pull requests are welcome.
 
-- **Code style:** the code is formatted with [ruff](https://docs.astral.sh/ruff/). Install the git hooks once with `uv run pre-commit install`; they then sort imports and format the code on every commit. CI checks formatting (`uv run ruff format --check`) and lint rules (`uv run ruff check`).
+- **Code style:** the code is formatted with [ruff](https://docs.astral.sh/ruff/). Install the git hooks once with `uv run pre-commit install`; they then sort imports and format the code on every commit. CI checks formatting (`uv run ruff format --check`), lint rules (`uv run ruff check`) and types (`uv run pyright`, the checker behind VS Code's Pylance).
 - **To add a language**, copy [`src/obs_backup/i18n/en.py`](src/obs_backup/i18n/en.py) to `<language code>.py`, translate the texts and add the module to `_MODULES` in [`src/obs_backup/i18n/__init__.py`](src/obs_backup/i18n/__init__.py). Tests check that no text is missing and that the `{placeholders}` match.
 
 ## License

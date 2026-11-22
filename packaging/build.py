@@ -37,7 +37,10 @@ EXCLUDED_MODULES = [
 
 def app_version() -> str:
     text = (ROOT / "src" / "obs_backup" / "__init__.py").read_text(encoding="utf-8")
-    return re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1)
+    match = re.search(r'__version__\s*=\s*"([^"]+)"', text)
+    if match is None:
+        sys.exit("__version__ not found in src/obs_backup/__init__.py")
+    return match.group(1)
 
 
 def write_windows_version_info(version: str) -> Path:

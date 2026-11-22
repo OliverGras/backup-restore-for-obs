@@ -7,7 +7,9 @@ from pathlib import Path
 
 import pytest
 
-QtWidgets = pytest.importorskip("PySide6.QtWidgets", exc_type=ImportError)
+pytest.importorskip("PySide6.QtWidgets", exc_type=ImportError)
+
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from obs_backup import backup  # noqa: E402
 from obs_backup.gui.main_window import MainWindow  # noqa: E402
@@ -16,8 +18,9 @@ from obs_backup.i18n import DEFAULT, LANGUAGES, set_language  # noqa: E402
 
 
 @pytest.fixture
-def app() -> QtWidgets.QApplication:
-    return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+def app() -> QApplication:
+    existing = QApplication.instance()
+    return existing if isinstance(existing, QApplication) else QApplication([])
 
 
 @pytest.fixture
@@ -30,7 +33,7 @@ def settings(tmp_path: Path, obs: Path) -> AppSettings:
 
 
 @pytest.fixture
-def window(app: QtWidgets.QApplication, settings: AppSettings):
+def window(app: QApplication, settings: AppSettings):
     w = MainWindow(settings)
     yield w
     w.close()
@@ -39,9 +42,8 @@ def window(app: QtWidgets.QApplication, settings: AppSettings):
 
 def test_shows_the_chosen_obs_folder(window: MainWindow, obs: Path) -> None:
     assert window.install.config_dir == obs
-    tree = window.backup_tab._tree
-    labels = [tree.topLevelItem(i).text(0) for i in range(tree.topLevelItemCount())]
-    assert len(labels) == 5  # profiles, scenes, general, plugin settings, browser data
+    # profiles, scenes, general settings, plugin settings, browser data
+    assert window.backup_tab._tree.topLevelItemCount() == 5
 
 
 def test_new_backup_appears_in_restore_tab(

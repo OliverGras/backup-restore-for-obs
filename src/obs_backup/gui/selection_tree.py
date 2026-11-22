@@ -1,5 +1,7 @@
 """Checkable tree of the things a backup can hold."""
 
+from collections.abc import Iterator
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QPushButton, QTreeWidget, QTreeWidgetItem, QWidget
 
@@ -73,26 +75,29 @@ class SelectionTree(QTreeWidget):
         item.setCheckState(0, CHECKED if checked else UNCHECKED)
         item.setToolTip(0, hint)
 
+    def _top_items(self) -> Iterator[QTreeWidgetItem]:
+        for i in range(self.topLevelItemCount()):
+            if (item := self.topLevelItem(i)) is not None:
+                yield item
+
     def set_all(self, checked: bool) -> None:
         state = CHECKED if checked else UNCHECKED
-        for i in range(self.topLevelItemCount()):
-            item = self.topLevelItem(i)
+        for item in self._top_items():
             if item.childCount():
-                for j in range(item.childCount()):
-                    item.child(j).setCheckState(0, state)
+                for child in _children(item):
+                    child.setCheckState(0, state)
             else:
                 item.setCheckState(0, state)
 
     def selection(self) -> Selection:
         sel = Selection()
-        for i in range(self.topLevelItemCount()):
-            item = self.topLevelItem(i)
+        for item in self._top_items():
             kind = item.data(0, ROLE_KIND)
             if item.childCount():
                 keys = [
-                    item.child(j).data(0, ROLE_KEY)
-                    for j in range(item.childCount())
-                    if item.child(j).checkState(0) == CHECKED
+                    child.data(0, ROLE_KEY)
+                    for child in _children(item)
+                    if child.checkState(0) == CHECKED
                 ]
                 if kind == "profiles":
                     sel.profiles = keys
@@ -109,6 +114,12 @@ class SelectionTree(QTreeWidget):
             elif kind == "browser":
                 sel.browser_data = on
         return sel
+
+
+def _children(item: QTreeWidgetItem) -> Iterator[QTreeWidgetItem]:
+    for j in range(item.childCount()):
+        if (child := item.child(j)) is not None:
+            yield child
 
 
 def selection_buttons(tree: SelectionTree) -> QWidget:

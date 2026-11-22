@@ -7,16 +7,25 @@ English; a test checks that every language has every key.
 """
 
 import locale
+from collections.abc import Mapping
 
 from obs_backup.i18n import de, en
 
+
+def _frozen[K, V](mapping: Mapping[K, V]) -> frozendict[K, V]:
+    # The typeshed stubs in Pyright 1.1.414 declare frozendict.__init__ without
+    # parameters, so type checkers reject frozendict(...) with arguments, although
+    # Python accepts it. This helper keeps that workaround in one place.
+    return frozendict(mapping)  # pyright: ignore[reportCallIssue]
+
+
 DEFAULT = "en"
-_MODULES = frozendict(en=en, de=de)
+_MODULES = _frozen({"en": en, "de": de})
 
 # Read-only: language code -> display name, and language code -> texts.
-LANGUAGES: frozendict[str, str] = frozendict({code: m.NAME for code, m in _MODULES.items()})
-STRINGS: frozendict[str, frozendict[str, str]] = frozendict(
-    {code: frozendict(m.STRINGS) for code, m in _MODULES.items()}
+LANGUAGES: frozendict[str, str] = _frozen({code: m.NAME for code, m in _MODULES.items()})
+STRINGS: frozendict[str, frozendict[str, str]] = _frozen(
+    {code: _frozen(m.STRINGS) for code, m in _MODULES.items()}
 )
 
 _current = DEFAULT
