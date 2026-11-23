@@ -1,7 +1,7 @@
 # Backup & Restore for OBS
 
 ## Disclaimer
-This Project is not associated with the [OBS Studio](https://obsproject.com/) itself. It is an open source tool which helps to create and restore backups.
+This Project is **not** associated with the [OBS Studio](https://obsproject.com/) itself. It is an open source tool which helps to create and restore backups.
 
 A simple tool with a graphical interface to **back up and restore [OBS Studio](https://obsproject.com/)**: profiles, scene collections (scenes and sources), settings, plugin settings and, optionally, the media files your scenes use.
 
